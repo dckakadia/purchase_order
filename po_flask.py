@@ -5,7 +5,7 @@ Port: 5005
 """
 
 import csv
-import os, json, uuid, shutil, base64, re, html, urllib.error, urllib.request, mimetypes, sqlite3, time, traceback
+import os, json, uuid, shutil, base64, re, html, urllib.error, urllib.request, mimetypes, sqlite3, time, traceback, zipfile
 from datetime import date, datetime
 from flask import Flask, render_template, request, jsonify, send_file
 import io
@@ -2495,14 +2495,29 @@ def export_data():
     bundle["version"] = "2.0 (SQLite)"
     
     json_bytes = json.dumps(bundle, indent=2, ensure_ascii=False).encode("utf-8")
-    buf = BytesIO(json_bytes)
-    buf.seek(0)
+    
+    zip_buf = BytesIO()
+    with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Add database backup
+        zf.writestr('database_backup.json', json_bytes)
+        
+        # Add physical attachments
+        if os.path.exists(ATTACH_DIR):
+            for root, dirs, files in os.walk(ATTACH_DIR):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    # Create relative path starting with 'attachments/'
+                    rel_path = os.path.relpath(file_path, ATTACH_DIR)
+                    arcname = os.path.join('attachments', rel_path)
+                    zf.write(file_path, arcname)
+                    
+    zip_buf.seek(0)
     
     return send_file(
-        buf,
-        mimetype="application/json",
+        zip_buf,
+        mimetype="application/zip",
         as_attachment=True,
-        download_name=f"portal_backup_{date.today().strftime('%Y%m%d')}.json"
+        download_name=f"portal_full_backup_{date.today().strftime('%Y%m%d')}.zip"
     )
 
 
@@ -2517,11 +2532,34 @@ def import_data():
         return jsonify({"error": "No file"}), 400
     
     file = request.files["file"]
+    file_bytes = file.read()
     
     try:
-        bundle = json.loads(file.read().decode("utf-8"))
+        if file.filename.lower().endswith('.zip'):
+            with zipfile.ZipFile(BytesIO(file_bytes), 'r') as zf:
+                # Read the JSON database backup
+                if 'database_backup.json' not in zf.namelist():
+                    return jsonify({"error": "ZIP file does not contain database_backup.json"}), 400
+                bundle = json.loads(zf.read('database_backup.json').decode("utf-8"))
+                
+                # Extract attachments to the ATTACH_DIR
+                for item in zf.namelist():
+                    if item.startswith('attachments/') and not item.endswith('/'):
+                        # Calculate the relative path within attachments/
+                        rel_path = item[len('attachments/'):]
+                        if not rel_path:
+                            continue
+                        target_path = os.path.join(ATTACH_DIR, rel_path)
+                        # Ensure the target directory exists
+                        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                        # Write the file directly
+                        with open(target_path, 'wb') as f_out:
+                            f_out.write(zf.read(item))
+        else:
+            # Fallback for old .json uploads
+            bundle = json.loads(file_bytes.decode("utf-8"))
     except Exception as e:
-        return jsonify({"error": f"Invalid JSON: {e}"}), 400
+        return jsonify({"error": f"Invalid backup file: {e}"}), 400
     
     # Validate structure
     required_keys = ["suppliers", "items", "purchase_orders", "customers"]
