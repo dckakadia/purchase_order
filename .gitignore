@@ -1,0 +1,20 @@
+# Secrets and Environment
+.env
+.flaskenv
+__pycache__/
+*.pyc
+venv/
+env/
+.vscode/
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Uploads or temporary files
+uploads/
+output/
+*.log
+data/
+*.bak*

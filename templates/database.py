@@ -105,12 +105,9 @@ def init_db():
                 phone TEXT,
                 email TEXT,
                 godowns TEXT,  -- JSON array kept for legacy reads; canonical data in forwarder_godowns
-                active INTEGER NOT NULL DEFAULT 1,  -- 1 = active, 0 = inactive
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        # Migrate existing forwarders table if active column is missing
-        _safe_add_column(cursor, "forwarders", "active", "INTEGER NOT NULL DEFAULT 1")
     
         # ── FORWARDER GODOWNS TABLE ──────────────────────────────────────────────
         # Stores full godown objects: label, contact_person, phone, email, address.
@@ -222,25 +219,6 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_po_status_log_po_id ON po_status_log(po_id)"
         )
 
-        # Migration: create po_status_log on databases that pre-date the table
-        # (CREATE TABLE IF NOT EXISTS above handles new DBs; this catches existing ones)
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='po_status_log'")
-        if not cursor.fetchone():
-            cursor.execute("""
-                CREATE TABLE po_status_log (
-                    id          TEXT PRIMARY KEY,
-                    po_id       TEXT NOT NULL,
-                    from_status TEXT,
-                    to_status   TEXT NOT NULL,
-                    changed_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    note        TEXT,
-                    FOREIGN KEY (po_id) REFERENCES purchase_orders(id) ON DELETE CASCADE
-                )
-            """)
-            cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_po_status_log_po_id ON po_status_log(po_id)"
-            )
-
         # ── PO LINE ITEMS TABLE ──────────────────────────────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS po_items (
@@ -344,99 +322,6 @@ def init_db():
             )
         """)
     
-        # ── SUPPLIER PAYMENT TERMS TABLE ────────────────────────────────────────
-        # One record per supplier — stores the agreed payment arrangement.
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS supplier_payment_terms (
-                supplier_id      TEXT PRIMARY KEY,
-                terms_type       TEXT DEFAULT 'NET30',
-                advance_pct      REAL DEFAULT 30,
-                balance_trigger  TEXT DEFAULT 'ON_INVOICE',
-                credit_days      INTEGER DEFAULT 0,
-                currency         TEXT DEFAULT 'USD',
-                notes            TEXT,
-                updated_at       TEXT DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE
-            )
-        """)
-
-        # ── SUPPLIER LEDGER ENTRIES TABLE ────────────────────────────────────
-        # Core accounting table: every financial event for a supplier lives here.
-        # Mirrors Tally Prime's Sundry Creditor ledger concept.
-        # DR = payment made (reduces payable); CR = invoice raised (increases payable)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS supplier_ledger_entries (
-                id             TEXT PRIMARY KEY,
-                supplier_id    TEXT NOT NULL,
-                po_id          TEXT,
-                entry_type     TEXT NOT NULL,
-                entry_date     TEXT NOT NULL,
-                ref_number     TEXT,
-                description    TEXT,
-                amount_usd     REAL NOT NULL DEFAULT 0,
-                amount_inr     REAL NOT NULL DEFAULT 0,
-                usd_rate       REAL NOT NULL DEFAULT 84,
-                dr_cr          TEXT NOT NULL,
-                payment_mode   TEXT,
-                bank_ref       TEXT,
-                attachment_id  TEXT,
-                notes          TEXT,
-                deleted_at     TEXT DEFAULT NULL,
-                created_at     TEXT DEFAULT CURRENT_TIMESTAMP,
-                created_by     TEXT DEFAULT 'User',
-                FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE,
-                FOREIGN KEY (po_id)       REFERENCES purchase_orders(id) ON DELETE SET NULL
-            )
-        """)
-
-        # ── CUSTOMERS TABLE ─────────────────────────────────────────────────────
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS customers (
-                id           TEXT PRIMARY KEY,
-                name         TEXT NOT NULL,
-                company      TEXT NOT NULL,
-                address      TEXT,
-                city         TEXT,
-                state        TEXT,
-                pincode      TEXT,
-                country      TEXT DEFAULT 'India',
-                gstin        TEXT,
-                email        TEXT,
-                phone        TEXT,
-                credit_limit REAL DEFAULT 0.0,
-                credit_days  INTEGER DEFAULT 30,
-                active       INTEGER NOT NULL DEFAULT 1,
-                created_at   TEXT DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(name, company)
-            )
-        """)
-
-        # ── CUSTOMER LEDGER ENTRIES TABLE ───────────────────────────────────────
-        # DR = Invoice raised (increases receivable)
-        # CR = Payment received (reduces receivable)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS customer_ledger_entries (
-                id             TEXT PRIMARY KEY,
-                customer_id    TEXT NOT NULL,
-                entry_type     TEXT NOT NULL,
-                entry_date     TEXT NOT NULL,
-                ref_number     TEXT,
-                description    TEXT,
-                amount_inr     REAL NOT NULL DEFAULT 0,
-                amount_usd     REAL NOT NULL DEFAULT 0,
-                usd_rate       REAL NOT NULL DEFAULT 84,
-                dr_cr          TEXT NOT NULL,       -- 'DR' or 'CR'
-                payment_mode   TEXT,
-                bank_ref       TEXT,
-                due_date       TEXT,               -- for invoices
-                notes          TEXT,
-                deleted_at     TEXT DEFAULT NULL,
-                created_at     TEXT DEFAULT CURRENT_TIMESTAMP,
-                created_by     TEXT DEFAULT 'User',
-                FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
-            )
-        """)
-
         # ── SETTINGS TABLE ──────────────────────────────────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS settings (
@@ -475,51 +360,6 @@ def init_db():
             END
         """)
     
-        # ── SHIPMENTS TABLE ──────────────────────────────────────────────────────
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS shipments (
-                id              TEXT PRIMARY KEY,
-                forwarder_id    TEXT NOT NULL,
-                booking_ref     TEXT,
-                departure_date  TEXT NOT NULL,
-                expected_arrival TEXT NOT NULL,
-                actual_arrival  TEXT,
-                status          TEXT NOT NULL DEFAULT 'Shipped',
-                description     TEXT,
-                notes           TEXT DEFAULT '[]',  -- JSON array of {date, text} objects
-                created_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                deleted_at      TEXT DEFAULT NULL,  -- NULL = active; timestamp = soft-deleted
-                FOREIGN KEY (forwarder_id) REFERENCES forwarders(id) ON DELETE RESTRICT
-            )
-        """)
-
-        # ── SHIPMENT PO LINK (Junction Table) ────────────────────────────────────
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS shipment_po_link (
-                id          TEXT PRIMARY KEY,
-                shipment_id TEXT NOT NULL,
-                po_id       TEXT NOT NULL,
-                UNIQUE (shipment_id, po_id),
-                FOREIGN KEY (shipment_id) REFERENCES shipments(id) ON DELETE CASCADE,
-                FOREIGN KEY (po_id) REFERENCES purchase_orders(id) ON DELETE CASCADE
-            )
-        """)
-
-        # ── SHIPMENTS updated_at TRIGGER ─────────────────────────────────────────
-        cursor.execute("""
-            CREATE TRIGGER IF NOT EXISTS trg_shipment_updated_at
-            AFTER UPDATE ON shipments
-            FOR EACH ROW
-            WHEN OLD.updated_at = NEW.updated_at
-              OR NEW.updated_at IS NULL
-            BEGIN
-                UPDATE shipments
-                SET updated_at = CURRENT_TIMESTAMP
-                WHERE id = NEW.id;
-            END
-        """)
-
         # ── INDEXES FOR PERFORMANCE ─────────────────────────────────────────────
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_po_supplier_id ON purchase_orders(supplier_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_po_status ON purchase_orders(status)")
@@ -535,27 +375,6 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_qsr_line_item_id ON quotation_supplier_rows(line_item_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_qsr_quotation_id ON quotation_supplier_rows(quotation_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_fwd_godowns_fid ON forwarder_godowns(forwarder_id)")
-        # Shipment-specific indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_shipments_status ON shipments(status)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_shipments_expected_arrival ON shipments(expected_arrival)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_shipments_deleted_at ON shipments(deleted_at)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_spl_shipment_id ON shipment_po_link(shipment_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_spl_po_id ON shipment_po_link(po_id)")
-
-        # Supplier Books indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sle_supplier_id ON supplier_ledger_entries(supplier_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sle_po_id ON supplier_ledger_entries(po_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sle_entry_date ON supplier_ledger_entries(entry_date)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sle_entry_type ON supplier_ledger_entries(entry_type)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sle_deleted_at ON supplier_ledger_entries(deleted_at)")
-
-        # Customer indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cle_customer_id ON customer_ledger_entries(customer_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cle_entry_date ON customer_ledger_entries(entry_date)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cle_entry_type ON customer_ledger_entries(entry_type)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cle_deleted_at ON customer_ledger_entries(deleted_at)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cle_due_date ON customer_ledger_entries(due_date)")
     
         conn.commit()
     except Exception:
@@ -598,4 +417,4 @@ if __name__ == "__main__":
     with get_db() as conn:
         init_default_settings(conn)
 
-    print(f"[OK] Database initialized at: {get_db_path()}")
+    print(f"✓ Database initialized at: {get_db_path()}")

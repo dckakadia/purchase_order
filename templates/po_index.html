@@ -296,6 +296,42 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
 .ibar-track{flex:1;height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden}
 .ibar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent2),var(--cyan))}
 .ibar-lbl{font-size:11px;font-weight:800;color:#fff;min-width:60px;text-align:right}
+
+/* ── Supplier Books ── */
+.sb-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+.sb-kpi{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px 20px;transition:all .25s}
+.sb-kpi:hover{border-color:var(--border2);transform:translateY(-3px)}
+.sb-kpi-val{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1;margin-top:10px}
+.sb-kpi-lbl{font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-top:6px}
+.sb-ledger-panel{position:fixed;top:0;right:-100%;width:min(780px,95vw);height:100vh;background:var(--bg2);border-left:1px solid var(--border2);z-index:200;transition:right .35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,.5)}
+.sb-ledger-panel.open{right:0}
+.sb-ledger-head{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.sb-ledger-body{flex:1;overflow-y:auto;padding:20px 24px}
+.sb-ledger-close{background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:8px;transition:all .2s}
+.sb-ledger-close:hover{color:#fff;background:rgba(239,68,68,.15)}
+.sb-sub-tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--bg3);padding:4px;border-radius:8px;border:1px solid var(--border)}
+.sb-sub-tab{flex:1;padding:7px 0;text-align:center;font-size:11px;font-weight:700;cursor:pointer;border-radius:6px;color:var(--text2);transition:all .2s;border:none;background:none;font-family:var(--font)}
+.sb-sub-tab.active{background:var(--bg4);color:#fff;box-shadow:var(--shadow-sm)}
+.ledger-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.ledger-tbl th{padding:9px 10px;font-size:9px;letter-spacing:.08em;color:var(--text2);text-transform:uppercase;border-bottom:1px solid var(--border);text-align:left;font-weight:800}
+.ledger-tbl td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.03);vertical-align:middle}
+.ledger-tbl tr.ldr-inv td{background:rgba(59,130,246,.07)}
+.ledger-tbl tr.ldr-pay td{background:rgba(34,197,94,.07)}
+.ledger-tbl tr.ldr-dn td{background:rgba(249,115,22,.07)}
+.ledger-tbl tr.ldr-cn td{background:rgba(167,139,250,.07)}
+.ldg-type{display:inline-block;font-size:8px;padding:2px 7px;border-radius:3px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.ldg-type.INVOICE{background:rgba(59,130,246,.15);color:var(--accent2)}
+.ldg-type.PAYMENT{background:rgba(34,197,94,.15);color:var(--accent)}
+.ldg-type.DEBIT_NOTE{background:rgba(249,115,22,.15);color:var(--orange)}
+.ldg-type.CREDIT_NOTE{background:rgba(167,139,250,.15);color:var(--accent3)}
+.ldg-type.ADJUSTMENT{background:rgba(107,116,153,.15);color:var(--text2)}
+.age-chip{display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px}
+.age-ok{background:rgba(34,197,94,.15);color:var(--accent)}
+.age-warn{background:rgba(245,158,11,.15);color:var(--accent4)}
+.age-alert{background:rgba(249,115,22,.15);color:var(--orange)}
+.age-crit{background:rgba(239,68,68,.15);color:var(--red)}
+.sb-overlay-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;display:none}
+.sb-overlay-bg.open{display:block}
 </style>
 </head>
 <body>
@@ -316,23 +352,13 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
 
   <nav class="sb-nav">
     <div class="sb-group">Main</div>
-    <div class="sb-item active" onclick="showTab('pos', this)">
+    <div class="sb-item active" onclick="showTab('dashboard', this)">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 13h1v2H0v-2zm2-4h1v6H2V9zm2-4h1v10H4V5zm2-3h1v13H6V2zm2 5h1v8H8V7zm2 4h1v4h-1v-4zm2-2h1v6h-1V9z"/></svg>
+      Dashboard
+    </div>
+    <div class="sb-item" onclick="showTab('pos', this)">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
       Purchase Orders
-    </div>
-
-    <div class="sb-group">Master Data</div>
-    <div class="sb-item" onclick="showTab('suppliers', this)">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 6a5 5 0 0110 0H3z"/></svg>
-      Suppliers
-    </div>
-    <div class="sb-item" onclick="showTab('items', this)">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10l1 3H2zM2 6h12v8H2z"/></svg>
-      Items / Products
-    </div>
-    <div class="sb-item" onclick="showTab('forwarders', this)">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 6l3-4h8l3 4v6H1zM5 3l-2 3h10l-2-3z"/></svg>
-      Forwarders
     </div>
 
     <div class="sb-item" onclick="showTab('quotations', this)">
@@ -340,17 +366,28 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
       Quotation Analyzer
     </div>
 
-    <div class="sb-item" onclick="showTab('suppliers-perf', this); showSuppliersTab();">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 13h1v2H0v-2zm2-4h1v6H2V9zm2-4h1v10H4V5zm2-3h1v13H6V2zm2 5h1v8H8V7zm2 4h1v4h-1v-4zm2-2h1v6h-1V9z"/></svg>
-      Supplier Dashboard
+    <div class="sb-item" onclick="showTab('masters', this)">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 6a5 5 0 0110 0H3z"/></svg>
+      Masters
     </div>
 
-    <hr class="sb-divider">
-    <div class="sb-group">Settings</div>
-    <div class="sb-item" onclick="showTab('settings', this)">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 5a3 3 0 100 6A3 3 0 008 5zM1.5 6.5h2A5.5 5.5 0 016 3.06V1H10v2.06a5.5 5.5 0 012.5 3.44h2v3h-2A5.5 5.5 0 0110 12.94V15H6v-2.06A5.5 5.5 0 013.5 9.5h-2z"/></svg>
-      Company Settings
+    <div class="sb-group" style="margin-top: 15px;">Accounting Books</div>
+    <div class="sb-item" onclick="window.location.href='/supplier-book'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h7A1.5 1.5 0 0 1 11 2.5v3.5h.5a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H4.5A1.5 1.5 0 0 1 3 13.5V10H2.5A1.5 1.5 0 0 1 1 8.5v-6zM3.5 10v3a.5.5 0 0 0 .5.5h6.5V7.5H4.5a.5.5 0 0 0-.5.5v2H3.5zM11 7V2.5a.5.5 0 0 0-.5-.5h-7a.5.5 0 0 0-.5.5V8.5a.5.5 0 0 0 .5.5H5V7h6z"/></svg>
+      Supplier Books
     </div>
+
+    <div class="sb-item" onclick="window.location.href='/customer-book'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h7A1.5 1.5 0 0 1 11 2.5v3.5h.5a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H4.5A1.5 1.5 0 0 1 3 13.5V10H2.5A1.5 1.5 0 0 1 1 8.5v-6zM3.5 10v3a.5.5 0 0 0 .5.5h6.5V7.5H4.5a.5.5 0 0 0-.5.5v2H3.5zM11 7V2.5a.5.5 0 0 0-.5-.5h-7a.5.5 0 0 0-.5.5V8.5a.5.5 0 0 0 .5.5H5V7h6z"/></svg>
+      Customer Books
+    </div>
+
+    <div class="sb-item" onclick="window.location.href='/forwarder-dashboard'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 13a.5.5 0 0 1-.5-.5V11h1v1.5a.5.5 0 0 1-.5.5zm11 0a.5.5 0 0 0 .5-.5V11h-1v1.5a.5.5 0 0 0 .5.5zM3 10V8.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 .5.5V10H3zm0-1h10V8.5a.5.5 0 0 0-.5-.5h-9a.5.5 0 0 0-.5.5V9zM1 6l3-4h8l3 4v6H1V6zm1.188 0h11.624L11.042 2.316A.5.5 0 0 0 10.655 2H5.345a.5.5 0 0 0-.387.184L2.188 6z"/></svg>
+      Forwarder Dashboard
+    </div>
+
+
   </nav>
 
   <div class="sb-footer">
@@ -369,8 +406,54 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
 <!-- ── MAIN ── -->
 <main class="main">
 
+<!-- DASHBOARD (CONSOLIDATED) -->
+<div class="tabs active" id="tab-dashboard">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Import Portal <span>Dashboard</span></div>
+      <div class="page-sub">Overview of POs, Suppliers, and Accounting Status</div>
+    </div>
+    <button class="btn btn-ghost" onclick="location.reload()">↻ Refresh</button>
+  </div>
+  
+  <!-- Main KPI Cards -->
+  <div class="stats-bar">
+    <div class="stat-card blue"><div class="stat-val" id="dash-po-total">—</div><div class="stat-label">Total POs</div></div>
+    <div class="stat-card purple"><div class="stat-val" id="dash-suppliers-active">—</div><div class="stat-label">Active Suppliers</div></div>
+    <div class="stat-card green"><div class="stat-val" id="dash-customers-active">—</div><div class="stat-label">Customers</div></div>
+    <div class="stat-card yellow"><div class="stat-val" id="dash-po-draft">—</div><div class="stat-label">Draft POs</div></div>
+    <div class="stat-card cyan"><div class="stat-val" id="dash-po-confirmed">—</div><div class="stat-label">Confirmed</div></div>
+    <div class="stat-card orange"><div class="stat-val" id="dash-po-pending">—</div><div class="stat-label">In Transit</div></div>
+  </div>
+
+  <!-- Two Column Grid -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:28px">
+    <!-- PO Summary Panel -->
+    <div class="table-wrap">
+      <div class="table-header"><div class="table-title">Recent Purchase Orders</div></div>
+      <table class="table">
+        <thead><tr><th>PO #</th><th>Supplier</th><th>Status</th><th>Value</th></tr></thead>
+        <tbody id="dash-po-table"><tr><td colspan="4" style="text-align:center;padding:20px">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- Accounting Summary Panel -->
+    <div class="table-wrap">
+      <div class="table-header"><div class="table-title">Accounting Overview</div></div>
+      <table class="table" style="font-size:11px">
+        <tbody>
+          <tr><td style="font-weight:700">Total Payable (₹)</td><td style="text-align:right;color:var(--accent3)" id="dash-payable">—</td></tr>
+          <tr><td style="font-weight:700">Total Receivable (₹)</td><td style="text-align:right;color:var(--accent2)" id="dash-receivable">—</td></tr>
+          <tr><td style="font-weight:700">Overdue 90+ Days</td><td style="text-align:right;color:var(--red)" id="dash-overdue">—</td></tr>
+          <tr><td style="font-weight:700">Advance Paid</td><td style="text-align:right;color:var(--accent)" id="dash-advance">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- PURCHASE ORDERS -->
-<div class="tabs active" id="tab-pos">
+<div class="tabs" id="tab-pos">
   <div class="page-header">
     <div>
       <div class="page-title">Purchase <span>Orders</span></div>
@@ -389,85 +472,155 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
   <div id="po-list"></div>
 </div>
 
-<!-- SUPPLIERS -->
-<div class="tabs" id="tab-suppliers">
+<!-- MASTERS (CONSOLIDATED) -->
+<div class="tabs" id="tab-masters">
   <div class="page-header">
     <div>
-      <div class="page-title">Supplier <span>Master</span></div>
-      <div class="page-sub">China supplier directory</div>
+      <div class="page-title">Master <span>Data</span></div>
+      <div class="page-sub">Company settings, Suppliers, Customers, Items, and Forwarders</div>
     </div>
-    <button class="btn btn-green" onclick="openSupplierModal()">+ Add Supplier</button>
   </div>
-  <div class="table-wrap">
-    <div class="table-header">
-      <div class="table-title">Suppliers</div>
-      <input class="search-bar" placeholder="Search supplier…" oninput="filterSuppliers(this.value)">
-    </div>
-    <table>
-      <thead><tr>
-        <th class="sortable" onclick="sortTable('suppliers','company',this)">Company<span class="sort-arrow"></span></th>
-        <th class="sortable" onclick="sortTable('suppliers','name',this)">Contact<span class="sort-arrow"></span></th>
-        <th>Phone / WeChat</th>
-        <th>Bank</th>
-        <th>Actions</th>
-      </tr></thead>
-      <tbody id="suppliers-tbody"><tr class="empty-row"><td colspan="5">Loading…</td></tr></tbody>
-    </table>
-  </div>
-</div>
 
-<!-- ITEMS -->
-<div class="tabs" id="tab-items">
-  <div class="page-header">
-    <div>
-      <div class="page-title">Item <span>Master</span></div>
-      <div class="page-sub">Product catalog for PO line items</div>
-    </div>
-    <button class="btn btn-primary" onclick="openItemModal()">+ Add Item</button>
+  <!-- Master Sub-tabs Navigation -->
+  <div style="display:flex;gap:10px;margin-bottom:28px;border-bottom:1px solid var(--border);padding-bottom:14px;flex-wrap:wrap">
+    <button class="btn btn-sm btn-ghost" id="master-tab-company" onclick="showMasterTab('company',this)" style="border-radius:6px 6px 0 0;border-bottom:2px solid var(--accent2);color:var(--accent2)">🏢 Company Settings</button>
+    <button class="btn btn-sm btn-ghost" id="master-tab-suppliers" onclick="showMasterTab('suppliers',this)" style="border-radius:6px 6px 0 0">🏭 Suppliers</button>
+    <button class="btn btn-sm btn-ghost" id="master-tab-customers" onclick="showMasterTab('customers',this)" style="border-radius:6px 6px 0 0">👥 Customers</button>
+    <button class="btn btn-sm btn-ghost" id="master-tab-items" onclick="showMasterTab('items',this)" style="border-radius:6px 6px 0 0">📦 Items</button>
+    <button class="btn btn-sm btn-ghost" id="master-tab-forwarders" onclick="showMasterTab('forwarders',this)" style="border-radius:6px 6px 0 0">🚛 Forwarders</button>
   </div>
-  <div class="table-wrap">
-    <div class="table-header">
-      <div class="table-title">Items / Products</div>
-      <input class="search-bar" placeholder="Search item…" oninput="filterItems(this.value)">
-    </div>
-    <table>
-      <thead><tr>
-        <th class="sortable" onclick="sortTable('items','name',this)">Item Name<span class="sort-arrow"></span></th>
-        <th class="sortable" onclick="sortTable('items','description',this)">Description<span class="sort-arrow"></span></th>
-        <th class="sortable" onclick="sortTable('items','hs_code',this)">HS Code<span class="sort-arrow"></span></th>
-        <th class="sortable" onclick="sortTable('items','unit',this)">Unit<span class="sort-arrow"></span></th>
-        <th class="sortable" onclick="sortTable('items','currency',this)">Currency<span class="sort-arrow"></span></th>
-        <th class="sortable" onclick="sortTable('items','default_price_usd',this)">Default Price<span class="sort-arrow"></span></th>
-        <th>Actions</th>
-      </tr></thead>
-      <tbody id="items-tbody"><tr class="empty-row"><td colspan="7">Loading…</td></tr></tbody>
-    </table>
-  </div>
-</div>
 
-<!-- FORWARDERS -->
-<div class="tabs" id="tab-forwarders">
-  <div class="page-header">
-    <div>
-      <div class="page-title">Forwarder <span>Master</span></div>
-      <div class="page-sub">Manage freight forwarders and their godown addresses</div>
+  <!-- Company Settings Panel -->
+  <div id="master-company" style="display:block">
+    <div class="page-header" style="margin-bottom:18px">
+      <div>
+        <div class="page-title" style="font-size:18px">Company <span>Settings</span></div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="showTab('settings', document.querySelector('.sb-item[onclick*=\'masters\']'))">Edit Settings →</button>
     </div>
-    <button class="btn btn-primary" onclick="openForwarderModal()">+ Add Forwarder</button>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+      <div class="form-section">
+        <div class="form-section-title">Company Name</div>
+        <input type="text" id="company-name" readonly style="background:rgba(0,0,0,.3);cursor:default">
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">Address</div>
+        <input type="text" id="company-address" readonly style="background:rgba(0,0,0,.3);cursor:default">
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">Phone</div>
+        <input type="text" id="company-phone" readonly style="background:rgba(0,0,0,.3);cursor:default">
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">Email</div>
+        <input type="text" id="company-email" readonly style="background:rgba(0,0,0,.3);cursor:default">
+      </div>
+    </div>
   </div>
-  <div class="table-wrap">
-    <div class="table-header">
-      <div class="table-title">Forwarders &amp; Godowns</div>
-      <input class="search-bar" placeholder="Search forwarder…" oninput="filterForwarders(this.value)">
+
+  <!-- Suppliers Panel -->
+  <div id="master-suppliers" style="display:none">
+    <div class="page-header" style="margin-bottom:18px">
+      <div>
+        <div class="page-title" style="font-size:18px">Supplier <span>Master</span></div>
+      </div>
+      <button class="btn btn-green" onclick="openSupplierModal()">+ Add Supplier</button>
     </div>
-    <table>
-      <thead><tr>
-        <th class="sortable" onclick="sortTable('forwarders','name',this)">Forwarder Name<span class="sort-arrow"></span></th>
-        <th class="sortable" onclick="sortTable('forwarders','email',this)">Email<span class="sort-arrow"></span></th>
-        <th>Godowns</th>
-        <th>Actions</th>
-      </tr></thead>
-      <tbody id="forwarders-tbody"><tr class="empty-row"><td colspan="4">Loading…</td></tr></tbody>
-    </table>
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">Suppliers</div>
+        <input class="search-bar" placeholder="Search supplier…" id="master-suppliers-search" oninput="filterSuppliers(this.value)">
+      </div>
+      <table>
+        <thead><tr>
+          <th class="sortable" onclick="sortTable('suppliers','company',this)">Company<span class="sort-arrow"></span></th>
+          <th class="sortable" onclick="sortTable('suppliers','name',this)">Contact<span class="sort-arrow"></span></th>
+          <th>Phone / WeChat</th>
+          <th>Bank</th>
+          <th>Actions</th>
+        </tr></thead>
+        <tbody id="suppliers-tbody"><tr class="empty-row"><td colspan="5">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Customers Panel -->
+  <div id="master-customers" style="display:none">
+    <div class="page-header" style="margin-bottom:18px">
+      <div>
+        <div class="page-title" style="font-size:18px">Customer <span>Master</span></div>
+      </div>
+      <button class="btn btn-primary" onclick="openCustomerModal()">+ Add Customer</button>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">Customers</div>
+        <input class="search-bar" placeholder="Search customer…" id="master-customers-search" oninput="filterCustomers(this.value)">
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable" onclick="sortTable('customers','company',this)">Company<span class="sort-arrow"></span></th>
+            <th class="sortable" onclick="sortTable('customers','name',this)">Name<span class="sort-arrow"></span></th>
+            <th>City / State</th>
+            <th>Credit Days</th>
+            <th>Credit Limit</th>
+            <th style="text-align:right">Outstanding (₹)</th>
+            <th style="text-align:center">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="customers-table-body"><tr class="empty-row"><td colspan="7">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Items Panel -->
+  <div id="master-items" style="display:none">
+    <div class="page-header" style="margin-bottom:18px">
+      <div>
+        <div class="page-title" style="font-size:18px">Item <span>Master</span></div>
+      </div>
+      <button class="btn btn-primary" onclick="openItemModal()">+ Add Item</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th class="sortable" onclick="sortTable('items','name',this)">Item Name<span class="sort-arrow"></span></th>
+          <th class="sortable" onclick="sortTable('items','description',this)">Description<span class="sort-arrow"></span></th>
+          <th class="sortable" onclick="sortTable('items','hs_code',this)">HS Code<span class="sort-arrow"></span></th>
+          <th class="sortable" onclick="sortTable('items','unit',this)">Unit<span class="sort-arrow"></span></th>
+          <th class="sortable" onclick="sortTable('items','currency',this)">Currency<span class="sort-arrow"></span></th>
+          <th class="sortable" onclick="sortTable('items','default_price_usd',this)">Default Price<span class="sort-arrow"></span></th>
+          <th>Actions</th>
+        </tr></thead>
+        <tbody id="items-tbody"><tr class="empty-row"><td colspan="7">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Forwarders Panel -->
+  <div id="master-forwarders" style="display:none">
+    <div class="page-header" style="margin-bottom:18px">
+      <div>
+        <div class="page-title" style="font-size:18px">Forwarder <span>Master</span></div>
+      </div>
+      <button class="btn btn-primary" onclick="openForwarderModal()">+ Add Forwarder</button>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">Forwarders & Godowns</div>
+        <input class="search-bar" placeholder="Search forwarder…" id="master-forwarders-search" oninput="filterForwarders(this.value)">
+      </div>
+      <table>
+        <thead><tr>
+          <th class="sortable" onclick="sortTable('forwarders','name',this)">Forwarder Name<span class="sort-arrow"></span></th>
+          <th class="sortable" onclick="sortTable('forwarders','email',this)">Email<span class="sort-arrow"></span></th>
+          <th>Godowns</th>
+          <th>Actions</th>
+        </tr></thead>
+        <tbody id="forwarders-tbody"><tr class="empty-row"><td colspan="4">Loading…</td></tr></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -530,7 +683,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
     </div>
     <button class="btn btn-primary" onclick="openQuotationModal()">+ New Quotation</button>
   </div>
-  <div class="stats-bar" style="grid-template-columns:repeat(4,1fr)">
+  <div class="stats-bar" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
     <div class="stat-card blue"><div class="stat-val" id="qa-count-total">&#8212;</div><div class="stat-label">Total Quotations</div></div>
     <div class="stat-card yellow"><div class="stat-val" id="qa-count-open">&#8212;</div><div class="stat-label">Open</div></div>
     <div class="stat-card green"><div class="stat-val" id="qa-count-awarded">&#8212;</div><div class="stat-label">Awarded</div></div>
@@ -722,6 +875,61 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
   </div>
 </div>
 
+<!-- SUPPLIER BOOKS TAB -->
+<div class="tabs" id="tab-supplier-books">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Supplier <span>Books</span></div>
+      <div class="page-sub">Tally-style payables ledger &middot; Ageing &middot; Account Statements</div>
+    </div>
+    <button class="btn btn-primary" onclick="sbOpenEntry(null)">+ Add Entry</button>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="sb-kpi-grid">
+    <div class="sb-kpi">
+      <div style="font-size:18px">¥</div>
+      <div class="sb-kpi-val" id="sb-kpi-outusd" style="color:var(--accent2)">—</div>
+      <div class="sb-kpi-lbl">Total Outstanding (CNY)</div>
+    </div>
+    <div class="sb-kpi">
+      <div style="font-size:18px">₹</div>
+      <div class="sb-kpi-val" id="sb-kpi-outinr" style="color:var(--accent3)">—</div>
+      <div class="sb-kpi-lbl">Outstanding (INR ~)</div>
+    </div>
+    <div class="sb-kpi">
+      <div style="font-size:18px">⚠️</div>
+      <div class="sb-kpi-val" id="sb-kpi-overdue" style="color:var(--red)">—</div>
+      <div class="sb-kpi-lbl">Overdue 90+ Days</div>
+    </div>
+    <div class="sb-kpi">
+      <div style="font-size:18px">✅</div>
+      <div class="sb-kpi-val" id="sb-kpi-advance" style="color:var(--accent)">—</div>
+      <div class="sb-kpi-lbl">Advance Paid (CNY)</div>
+    </div>
+  </div>
+
+  <!-- Payables Table -->
+  <div class="table-wrap">
+    <div class="table-header">
+      <div class="table-title">Payables Overview</div>
+      <input class="search-bar" id="sbSearchBar" placeholder="Search supplier…" oninput="sbRenderTable()" style="width:200px">
+    </div>
+    <table>
+      <thead><tr>
+        <th>Supplier</th>
+        <th style="text-align:right">Billed (CNY)</th>
+        <th style="text-align:right">Paid (CNY)</th>
+        <th style="text-align:right">Outstanding (CNY)</th>
+        <th style="text-align:right">Outstanding (INR ~)</th>
+        <th>Oldest Overdue</th>
+        <th>Actions</th>
+      </tr></thead>
+      <tbody id="sb-payables-tbody"><tr class="empty-row"><td colspan="7">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
 </main><!-- /main -->
 
 </div><!-- /layout -->
@@ -751,9 +959,74 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
         <div class="form-group"><label>SWIFT Code</label><input id="sup_swift" type="text"></div>
       </div>
     </div>
+    <div class="form-section" id="sup-terms-section" style="margin-top:12px">
+      <div class="form-section-title">💳 Payment Terms &amp; Credit</div>
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label>Terms Type</label>
+          <select id="sup_terms_type">
+            <option value="TT30">TT30 – Telegraphic 30 Days</option>
+            <option value="TT60">TT60 – Telegraphic 60 Days</option>
+            <option value="NET30" selected>NET30 – Net 30 Days</option>
+            <option value="NET60">NET60 – Net 60 Days</option>
+            <option value="LC">LC – Letter of Credit</option>
+            <option value="CAD">CAD – Cash Against Documents</option>
+            <option value="ADVANCE">100% Advance</option>
+            <option value="CUSTOM">Custom</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Credit Days</label>
+          <input id="sup_credit_days" type="number" min="0" value="30" placeholder="30">
+        </div>
+        <div class="form-group">
+          <label>Advance %</label>
+          <input id="sup_advance_pct" type="number" min="0" max="100" step="5" value="30" placeholder="30">
+        </div>
+        <div class="form-group">
+          <label>Balance Trigger</label>
+          <select id="sup_balance_trigger">
+            <option value="ON_INVOICE">On Invoice Date</option>
+            <option value="BEFORE_SHIPMENT">Before Shipment</option>
+            <option value="AFTER_BL">After BL</option>
+            <option value="AFTER_DELIVERY">After Delivery</option>
+          </select>
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Terms Notes</label>
+          <input id="sup_terms_notes" type="text" placeholder="e.g. 30% advance, 70% before shipment">
+        </div>
+      </div>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('supplierOverlay')">Cancel</button>
       <button class="btn btn-primary" onclick="saveSupplier()">Save Supplier</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── CUSTOMER MODAL ── -->
+<div class="overlay" id="customerOverlay">
+  <div class="modal">
+    <div class="modal-title" id="customerModalTitle">Add Customer</div>
+    <button class="modal-close" onclick="closeModal('customerOverlay')">✕</button>
+    <input type="hidden" id="c_id">
+    <div class="form-grid form-grid-2">
+      <div class="form-group"><label>Company Name *</label><input id="c_company" type="text" required></div>
+      <div class="form-group"><label>Contact Name *</label><input id="c_name" type="text" required></div>
+      <div class="form-group" style="grid-column:1/-1"><label>Address</label><input id="c_address" type="text"></div>
+      <div class="form-group"><label>City</label><input id="c_city" type="text"></div>
+      <div class="form-group"><label>State</label><input id="c_state" type="text"></div>
+      <div class="form-group"><label>GSTIN</label><input id="c_gstin" type="text"></div>
+      <div class="form-group"><label>Credit Days</label><input id="c_credit_days" type="number" value="30"></div>
+      <div class="form-group"><label>Credit Limit (₹)</label><input id="c_credit_limit" type="number" value="0"></div>
+      <div class="form-group"><label>Email</label><input id="c_email" type="email"></div>
+      <div class="form-group"><label>Phone</label><input id="c_phone" type="text"></div>
+      <div class="form-group" id="c_opening_grp"><label>Opening Balance (₹) (Debit)</label><input id="c_opening" type="number" value="0" step="0.01"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('customerOverlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCustomer()">Save Customer</button>
     </div>
   </div>
 </div>
@@ -899,6 +1172,9 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
       </div>
     </div>
 
+    <!-- Linked Shipment Info -->
+    <div id="po_shipment_info" style="display:none"></div>
+
     <!-- Line Items -->
     <div class="form-section" style="margin-top:14px">
       <div class="form-section-title">🛒 Line Items</div>
@@ -990,10 +1266,10 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
 
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
-let suppliers = [], items = [], pos = [], settings = {}, forwarders = [];
+let suppliers = [], items = [], pos = [], settings = {}, forwarders = [], customers = [];
 
 // ── Base path detection (works at / locally and /po/ on nginx server) ──────
-const API_BASE = window.location.pathname.split('/').slice(0, -1).join('/');
+const API_BASE = '';  // API endpoints are at root level (/api/*, not /po/api/*)
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 async function api(url, method='GET', body=null){
@@ -1017,6 +1293,28 @@ function showTab(name, el){
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
   if(el) el.classList.add('active');
+}
+
+function showMasterTab(masterType, button){
+  // Hide all master panels
+  document.getElementById('master-company').style.display = 'none';
+  document.getElementById('master-suppliers').style.display = 'none';
+  document.getElementById('master-customers').style.display = 'none';
+  document.getElementById('master-items').style.display = 'none';
+  document.getElementById('master-forwarders').style.display = 'none';
+  
+  // Remove active state from all buttons
+  document.querySelectorAll('#tab-masters button').forEach(b => {
+    b.style.borderBottomColor = 'transparent';
+    b.style.color = 'var(--text-secondary)';
+  });
+  
+  // Show selected panel and highlight button
+  document.getElementById('master-' + masterType).style.display = 'block';
+  if(button){
+    button.style.borderBottomColor = 'var(--accent2)';
+    button.style.color = 'var(--accent2)';
+  }
 }
 
 function openModal(id){ document.getElementById(id).classList.add('open') }
@@ -1129,6 +1427,12 @@ function renderPOs(){
             <div class="po-meta-item">Total: <span style="color:var(--accent4);font-weight:700">${fmtCur(total,cur)}</span></div>
             ${p.due_date ? `<div class="po-meta-item">Due Date: <span style="color:var(--accent);font-weight:700">${p.due_date}</span></div>` : ''}
             ${p.remarks ? `<div class="po-meta-item">Ref: <span>${esc(p.remarks)}</span></div>` : ''}
+            ${p.shipment ? `
+              <div class="po-meta-item">Shipment: 
+                <a href="/forwarder-dashboard" style="color:var(--cyan);font-weight:700;text-decoration:underline">
+                  ${esc(p.shipment.status)} (${esc(p.shipment.description)})
+                </a>
+              </div>` : ''}
           </div>
         </div>
         <div class="po-actions">
@@ -1209,6 +1513,27 @@ async function openPOModal(po=null){
   document.getElementById('lcPreview').style.display='block';
   if(po) loadTimeline(po.id);
   else document.getElementById('timeline-container').innerHTML = '<p class="text-muted">Create PO to see timeline.</p>';
+  
+  // Show shipment info if linked
+  const shipSection = document.getElementById('po_shipment_info');
+  if (po && po.shipment) {
+    shipSection.style.display = 'block';
+    shipSection.innerHTML = `
+      <div style="background:rgba(6,182,212,.1); border:1px solid rgba(6,182,212,.3); border-radius:8px; padding:12px; margin: 0 0 14px 0">
+        <div style="font-size:10px; font-weight:800; color:var(--cyan); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px">🔗 Linked Shipment</div>
+        <div style="display:flex; justify-content:space-between; align-items:center">
+          <div>
+            <div style="font-size:12px; font-weight:700; color:#fff">${esc(po.shipment.description)}</div>
+            <div style="font-size:11px; color:var(--text2)">Status: <span style="color:var(--cyan)">${esc(po.shipment.status)}</span></div>
+          </div>
+          <a href="/forwarder-dashboard" class="btn btn-ghost btn-xs" style="color:var(--cyan); border-color:rgba(6,182,212,.4)">View Tracking →</a>
+        </div>
+      </div>
+    `;
+  } else {
+    shipSection.style.display = 'none';
+  }
+
   openModal('poOverlay');
 }
 
@@ -1933,8 +2258,13 @@ async function init(){
     api('/api/suppliers'), api('/api/items'), api('/api/po'),
     api('/api/settings'),  api('/api/forwarders')
   ]);
+  // Load customers separately (non-critical)
+  try { customers = await api('/api/customers'); } catch(e){ customers = []; }
   renderAll();
+  renderCustomers();
   loadSettings();
+  loadCompanySettings();
+  loadDashboard();
   populateFwdDropdown();
   loadQuotations();
   
@@ -1944,6 +2274,98 @@ async function init(){
     const el = document.getElementById('gemini_api_key');
     if (el) el.value = savedKey;
   }
+}
+
+// ── CUSTOMERS ──────────────────────────────────────────────────────────────
+let custFilter = '';
+function filterCustomers(v){ custFilter = v.toLowerCase(); renderCustomers(); }
+
+function renderCustomers(){
+  const tbody = document.getElementById('customers-table-body');
+  if(!tbody) return;
+  let list = customers.filter(c => !custFilter ||
+    (c.company||'').toLowerCase().includes(custFilter) ||
+    (c.name||'').toLowerCase().includes(custFilter));
+  if(!list.length){
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No customers found.</td></tr>'; return;
+  }
+  tbody.innerHTML = list.map(c => `<tr>
+    <td><div style="color:#fff;font-weight:600">${esc(c.company)}</div><div style="font-size:10px;color:var(--text2)">${esc(c.city||'')}${c.state?', '+esc(c.state):''}</div></td>
+    <td>${esc(c.name||'—')}</td>
+    <td>${esc((c.city||'')+(c.state?', '+c.state:''))}</td>
+    <td style="text-align:center">${c.credit_days||30}</td>
+    <td style="text-align:right;color:var(--text2)">${c.credit_limit?fmtInr(c.credit_limit):'—'}</td>
+    <td style="text-align:right;color:${(c.outstanding_balance||0)>=0?'var(--accent3)':'var(--accent)'}">${fmtInr(Math.abs(c.outstanding_balance||0))}</td>
+    <td><div style="display:flex;gap:6px;justify-content:center">
+      <button class="btn btn-ghost btn-xs" onclick="openCustomerModal('${c.id}')">Edit</button>
+      <button class="btn btn-xs" style="color:var(--red);border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08)" onclick="deleteCustomer('${c.id}')">✕</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+function openCustomerModal(cid=null){
+  const c = cid ? customers.find(x=>x.id===cid) : null;
+  document.getElementById('customerModalTitle').textContent = c ? 'Edit Customer' : 'Add Customer';
+  document.getElementById('c_id').value        = c ? c.id : '';
+  document.getElementById('c_company').value   = c ? (c.company||'') : '';
+  document.getElementById('c_name').value      = c ? (c.name||'') : '';
+  document.getElementById('c_address').value   = c ? (c.address||'') : '';
+  document.getElementById('c_city').value      = c ? (c.city||'') : '';
+  document.getElementById('c_state').value     = c ? (c.state||'') : '';
+  document.getElementById('c_gstin').value     = c ? (c.gstin||'') : '';
+  document.getElementById('c_credit_days').value  = c ? (c.credit_days||30) : 30;
+  document.getElementById('c_credit_limit').value = c ? (c.credit_limit||0) : 0;
+  document.getElementById('c_email').value     = c ? (c.email||'') : '';
+  document.getElementById('c_phone').value     = c ? (c.phone||'') : '';
+  // Opening balance only shown for new customers
+  const obGrp = document.getElementById('c_opening_grp');
+  if(obGrp) obGrp.style.display = c ? 'none' : '';
+  if(!c){ const ob = document.getElementById('c_opening'); if(ob) ob.value = 0; }
+  openModal('customerOverlay');
+}
+
+async function saveCustomer(){
+  const cid  = document.getElementById('c_id').value;
+  const body = {
+    company:      document.getElementById('c_company').value.trim(),
+    name:         document.getElementById('c_name').value.trim(),
+    address:      document.getElementById('c_address').value.trim(),
+    city:         document.getElementById('c_city').value.trim(),
+    state:        document.getElementById('c_state').value.trim(),
+    gstin:        document.getElementById('c_gstin').value.trim(),
+    credit_days:  parseInt(document.getElementById('c_credit_days').value)||30,
+    credit_limit: parseFloat(document.getElementById('c_credit_limit').value)||0,
+    email:        document.getElementById('c_email').value.trim(),
+    phone:        document.getElementById('c_phone').value.trim(),
+  };
+  if(!body.company){ toast('Company name is required','err'); return; }
+  if(!body.name){ toast('Contact name is required','err'); return; }
+  const openingOb = document.getElementById('c_opening');
+  if(!cid && openingOb) body.opening_balance = parseFloat(openingOb.value)||0;
+  try{
+    if(cid){
+      const u = await api(`/api/customers/${cid}`,'PUT',body);
+      customers = customers.map(c=>c.id===cid?{...c,...u}:c);
+      toast('Customer updated');
+    } else {
+      const c = await api('/api/customers','POST',body);
+      customers.push(c);
+      toast('Customer added');
+    }
+    renderCustomers();
+    document.getElementById('dash-customers-active').textContent = customers.length;
+    closeModal('customerOverlay');
+  } catch(err){ toast('Save failed: '+err.message,'err'); }
+}
+
+async function deleteCustomer(cid){
+  if(!(await sysConfirm('Delete this customer?'))) return;
+  try{
+    await api(`/api/customers/${cid}`,'DELETE');
+    customers = customers.filter(c=>c.id!==cid);
+    renderCustomers();
+    toast('Customer deleted');
+  } catch(err){ toast(err.message,'err'); }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -4332,6 +4754,79 @@ function sdRenderTopTable(data){
 
 function renderSupplierCards(data){ _sdAllSuppliers = data||[]; sdRefresh(); }
 
+// ── Dashboard Functions ──────────────────────────────────────────────────────
+async function loadDashboard(){
+  try{
+    // Use already-loaded pos global (loaded in init)
+    const allPOs = Array.isArray(pos) ? pos : [];
+    document.getElementById('dash-po-total').textContent     = allPOs.length;
+    document.getElementById('dash-po-draft').textContent     = allPOs.filter(p=>p.status==='Draft').length;
+    document.getElementById('dash-po-confirmed').textContent = allPOs.filter(p=>p.status==='Confirmed').length;
+    document.getElementById('dash-po-pending').textContent   = allPOs.filter(p=>['Shipped','In Transit'].includes(p.status)).length;
+    
+    // Supplier/customer counts
+    document.getElementById('dash-suppliers-active').textContent = suppliers.length;
+    document.getElementById('dash-customers-active').textContent = customers.length;
+    
+    // Recent POs table — latest 5 by PO number descending
+    const sorted  = [...allPOs].sort((a,b)=>(b.po_number||'').localeCompare(a.po_number||'',undefined,{numeric:true,sensitivity:'base'}));
+    const recent  = sorted.slice(0,5);
+    const tbody   = document.getElementById('dash-po-table');
+    if(recent.length){
+      tbody.innerHTML = recent.map(p=>{
+        const sup   = p.supplier_snapshot||{};
+        const total = (p.line_items||[]).reduce((s,li)=>s+(li.qty||0)*(li.unit_price||0),0);
+        const cur   = p.currency||'CNY';
+        const statusColor = p.status==='Draft'?'rgba(245,158,11,.15);color:var(--accent4)'
+          :p.status==='Confirmed'?'rgba(167,139,250,.15);color:var(--accent3)'
+          :p.status==='Received'?'rgba(34,197,94,.15);color:var(--accent)'
+          :'rgba(6,182,212,.15);color:var(--cyan)';
+        return `<tr>
+          <td><strong style="color:#fff">${esc(p.po_number||'—')}</strong></td>
+          <td style="font-size:11px">${esc(sup.company||sup.name||'—')}</td>
+          <td><span style="background:${statusColor};padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700">${esc(p.status||'Draft')}</span></td>
+          <td style="text-align:right;color:var(--accent4);font-weight:700">${fmtCur(total,cur)}</td>
+        </tr>`;
+      }).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text3)">No purchase orders yet</td></tr>';
+    }
+    
+    // Accounting summary from supplier ledger API
+    try {
+      const outSummary = await api('/api/suppliers/summary/outstanding');
+      const payableINR = Math.round(outSummary.total_outstanding_inr || 0);
+      document.getElementById('dash-payable').textContent = `₹ ${payableINR.toLocaleString('en-IN')}`;
+      document.getElementById('dash-overdue').textContent = outSummary.overdue_bills_count !== undefined ? outSummary.overdue_bills_count : '0';
+      
+      const usdRate = parseFloat(settings.default_usd_rate || 84.0);
+      const advanceINR = Math.round((outSummary.advance_paid_usd || 0) * usdRate);
+      document.getElementById('dash-advance').textContent = `₹ ${advanceINR.toLocaleString('en-IN')}`;
+    } catch (e2) {
+      document.getElementById('dash-payable').textContent = '—';
+      document.getElementById('dash-overdue').textContent = '—';
+      document.getElementById('dash-advance').textContent = '—';
+    }
+
+    // Customer receivable summary
+    try {
+      const custSummary = await api('/api/customers/summary');
+      const receivableINR = Math.round(custSummary.total_receivable || 0);
+      document.getElementById('dash-receivable').textContent = `₹ ${receivableINR.toLocaleString('en-IN')}`;
+    } catch (e3) {
+      document.getElementById('dash-receivable').textContent = '—';
+    }
+  }catch(e){ toast('Failed to load dashboard: '+e.message,'err'); }
+}
+
+function loadCompanySettings(){
+  // Uses the already-loaded global settings object from init()
+  document.getElementById('company-name').value    = settings.company_name    || 'Not Set';
+  document.getElementById('company-address').value = settings.company_address || 'Not Set';
+  document.getElementById('company-phone').value   = settings.company_phone   || 'Not Set';
+  document.getElementById('company-email').value   = settings.company_email   || 'Not Set';
+}
+
 // ── Initialize App ──────────────────────────────────────────────────────────
 // init(); (Removed duplicate call)
 </script>
@@ -4733,6 +5228,454 @@ table.qs-grid .qs-savings-row td.td-savings-sup{text-align:right}
     </div>
   </div>
 </div>
+
+
+<!-- Supplier Books: slide-in overlay background -->
+<div class="sb-overlay-bg" id="sbOverlayBg" onclick="sbCloseLedger()"></div>
+
+<!-- Supplier Books: Ledger slide-in panel -->
+<div class="sb-ledger-panel" id="sbLedgerPanel">
+  <div class="sb-ledger-head">
+    <div>
+      <div style="font-size:15px;font-weight:900;color:#fff" id="sbLedgerTitle">Ledger</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px" id="sbLedgerBalance">Closing Balance: —</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-primary btn-sm" onclick="sbOpenEntry(window._sbCurrentSid)">+ Add Entry</button>
+      <a id="sbStmtPdfBtn" href="#" target="_blank" class="btn btn-ghost btn-sm">📄 Statement PDF</a>
+      <button class="sb-ledger-close" onclick="sbCloseLedger()">✕</button>
+    </div>
+  </div>
+  <div class="sb-ledger-body">
+    <div class="sb-sub-tabs">
+      <button class="sb-sub-tab active" id="sbSubAll" onclick="sbShowSubTab('all')">All Entries</button>
+      <button class="sb-sub-tab" id="sbSubOut" onclick="sbShowSubTab('outstanding')">Outstanding Bills</button>
+    </div>
+    <!-- All Entries -->
+    <div id="sbPanelAll">
+      <table class="ledger-tbl">
+        <thead><tr>
+          <th style="width:80px">Date</th>
+          <th style="width:90px">Type</th>
+          <th style="width:110px">Reference</th>
+          <th>Narration</th>
+          <th style="text-align:right;width:90px">Dr (CNY)</th>
+          <th style="text-align:right;width:90px">Cr (CNY)</th>
+          <th style="text-align:right;width:110px">Balance</th>
+          <th style="width:60px"></th>
+        </tr></thead>
+        <tbody id="sbLedgerTbody"></tbody>
+      </table>
+    </div>
+    <!-- Outstanding Ageing -->
+    <div id="sbPanelOut" style="display:none">
+      <div id="sbAgeingContent"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Entry Modal -->
+<div class="overlay" id="sbEntryOverlay">
+  <div class="modal modal-lg">
+    <div class="modal-title">📒 Voucher Entry — Supplier Books</div>
+    <button class="modal-close" onclick="closeModal('sbEntryOverlay')">✕</button>
+    <input type="hidden" id="sbEntryEid">
+    <input type="hidden" id="sbEntrySid">
+    <div class="form-grid form-grid-2">
+      <div class="form-group">
+        <label>Supplier *</label>
+        <select id="sbEntrySup" onchange="sbEntrySupChanged()"></select>
+      </div>
+      <div class="form-group">
+        <label>Entry Type *</label>
+        <select id="sbEntryType" onchange="sbEntryTypeChanged()">
+          <option value="INVOICE">INVOICE — Purchase Invoice (CR)</option>
+          <option value="PAYMENT">PAYMENT — Payment Made (DR)</option>
+          <option value="DEBIT_NOTE">DEBIT NOTE — Return / Discount (DR)</option>
+          <option value="CREDIT_NOTE">CREDIT NOTE — Supplier Credit (CR)</option>
+          <option value="ADJUSTMENT">ADJUSTMENT</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Date *</label>
+        <input type="date" id="sbEntryDate">
+      </div>
+      <div class="form-group">
+        <label>Reference / PO No.</label>
+        <select id="sbEntryPO">
+          <option value="">— None —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Amount (CNY / RMB ¥) *</label>
+        <input type="number" id="sbEntryAmt" step="0.01" min="0.01" placeholder="0.00" oninput="sbCalcINR()">
+      </div>
+      <div class="form-group">
+        <label>CNY → INR Rate</label>
+        <input type="number" id="sbEntryRate" step="0.01" value="11.5" oninput="sbCalcINR()">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>INR Equivalent (auto)</label>
+        <input type="text" id="sbEntryINR" readonly style="background:rgba(34,197,94,.06);color:var(--accent)">
+      </div>
+      <div id="sbPaymentFields" style="display:none;grid-column:1/-1">
+        <div class="form-grid form-grid-2" style="margin-top:0">
+          <div class="form-group">
+            <label>Payment Mode</label>
+            <select id="sbEntryPayMode">
+              <option value="TT">TT (Telegraphic Transfer)</option>
+              <option value="LC">LC (Letter of Credit)</option>
+              <option value="SWIFT">SWIFT Transfer</option>
+              <option value="CASH">Cash</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Bank Ref / UTR</label>
+            <input type="text" id="sbEntryBankRef" placeholder="UTR / TT Reference">
+          </div>
+        </div>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Narration / Description</label>
+        <input type="text" id="sbEntryDesc" placeholder="e.g. Payment against PO-2026-001 advance 30%">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Internal Notes</label>
+        <textarea id="sbEntryNotes" rows="2" placeholder="Optional internal remarks"></textarea>
+      </div>
+    </div>
+    <div style="margin-top:12px;padding:10px 14px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:8px;font-size:11px;color:var(--text2)" id="sbEntryDrCrHint">
+      CR entry — increases payable (we owe supplier more)
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('sbEntryOverlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="sbSaveEntry()">Save Entry</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// SUPPLIER BOOKS — JavaScript
+// ═══════════════════════════════════════════════════════════════
+
+let _sbData = { suppliers: [], total_outstanding_usd: 0, total_outstanding_inr: 0, overdue_bills_count: 0, advance_paid_usd: 0 };
+let _sbCurrentSid = null;
+let _sbCurrentSubTab = 'all';
+let _sbAllSuppliers = [];
+
+function fmtUSD(v) { return '¥ ' + Number(v || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function fmtINR(v) { return '₹ ' + Number(v || 0).toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+
+// ── Dashboard ────────────────────────────────────────────────
+async function sbLoadDashboard() {
+  document.getElementById('sb-payables-tbody').innerHTML = '<tr class="empty-row"><td colspan="7">Loading…</td></tr>';
+  try {
+    const r = await fetch('/api/suppliers/summary/outstanding');
+    _sbData = await r.json();
+  } catch(e) { _sbData = { suppliers:[], total_outstanding_usd:0, total_outstanding_inr:0, overdue_bills_count:0, advance_paid_usd:0 }; }
+
+  document.getElementById('sb-kpi-outusd').textContent = fmtUSD(_sbData.total_outstanding_usd);
+  document.getElementById('sb-kpi-outinr').textContent = fmtINR(_sbData.total_outstanding_inr);
+  document.getElementById('sb-kpi-overdue').textContent = _sbData.overdue_bills_count;
+  document.getElementById('sb-kpi-advance').textContent = fmtUSD(_sbData.advance_paid_usd);
+  sbRenderTable();
+
+  // Also cache all suppliers for the entry dropdown
+  try {
+    const sr = await fetch('/api/suppliers');
+    _sbAllSuppliers = await sr.json();
+  } catch(e) { _sbAllSuppliers = []; }
+}
+
+function sbRenderTable() {
+  const q = (document.getElementById('sbSearchBar')?.value || '').toLowerCase();
+  const rows = (_sbData.suppliers || []).filter(s =>
+    !q || (s.company||'').toLowerCase().includes(q) || (s.name||'').toLowerCase().includes(q)
+  );
+  const tb = document.getElementById('sb-payables-tbody');
+  if (!rows.length) { tb.innerHTML = '<tr class="empty-row"><td colspan="7">No payables found</td></tr>'; return; }
+  tb.innerHTML = rows.map(s => {
+    const days = s.oldest_overdue_days || 0;
+    let ageCls = 'age-ok', ageLbl = 'Current';
+    if (days > 90) { ageCls = 'age-crit'; ageLbl = '91+ Days'; }
+    else if (days > 60) { ageCls = 'age-alert'; ageLbl = '61–90 Days'; }
+    else if (days > 30) { ageCls = 'age-warn'; ageLbl = '31–60 Days'; }
+    const rowStyle = days > 90 ? 'background:rgba(239,68,68,.04)' : days > 30 ? 'background:rgba(249,115,22,.04)' : '';
+    return `<tr style="${rowStyle}">
+      <td><div style="font-weight:700;color:#fff">${s.company||s.name||'—'}</div><div style="font-size:10px;color:var(--text2)">${s.name||''}</div></td>
+      <td style="text-align:right">${fmtUSD(s.total_billed_usd)}</td>
+      <td style="text-align:right;color:var(--accent)">${fmtUSD(s.total_paid_usd)}</td>
+      <td style="text-align:right;font-weight:700;color:${days>90?'var(--red)':'#fff'}">${fmtUSD(s.outstanding_usd)}</td>
+      <td style="text-align:right;color:var(--text2)">${fmtINR(s.outstanding_inr)}</td>
+      <td><span class="age-chip ${ageCls}">${days > 0 ? days + ' days · ' + ageLbl : ageLbl}</span></td>
+      <td><button class="btn btn-ghost btn-xs" onclick="sbOpenLedger('${s.id}','${(s.company||s.name||'').replace(/'/g,"\\'")}')">View Ledger</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Ledger Panel ─────────────────────────────────────────────
+async function sbOpenLedger(sid, name) {
+  _sbCurrentSid = sid;
+  document.getElementById('sbLedgerTitle').textContent = '📒 ' + name;
+  document.getElementById('sbLedgerBalance').textContent = 'Loading…';
+  document.getElementById('sbStmtPdfBtn').href = '/api/suppliers/' + sid + '/ledger/pdf';
+  document.getElementById('sbOverlayBg').classList.add('open');
+  document.getElementById('sbLedgerPanel').classList.add('open');
+  await sbLoadLedger(sid);
+  sbShowSubTab('all');
+}
+
+function sbCloseLedger() {
+  document.getElementById('sbLedgerPanel').classList.remove('open');
+  document.getElementById('sbOverlayBg').classList.remove('open');
+}
+
+async function sbLoadLedger(sid) {
+  try {
+    const r = await fetch('/api/suppliers/' + sid + '/ledger');
+    const data = await r.json();
+    const bal = data.closing_balance || 0;
+    const sfx = data.balance_suffix || 'Cr';
+    document.getElementById('sbLedgerBalance').textContent =
+      'Closing Balance: ' + fmtUSD(Math.abs(bal)) + ' CNY · ' + sfx;
+    document.getElementById('sbLedgerTbody').innerHTML = (data.entries||[]).map(e => {
+      const trCls = {INVOICE:'ldr-inv',PAYMENT:'ldr-pay',DEBIT_NOTE:'ldr-dn',CREDIT_NOTE:'ldr-cn'}[e.entry_type]||'';
+      const dr = e.dr_cr === 'DR' ? fmtUSD(e.amount_usd) : '';
+      const cr = e.dr_cr === 'CR' ? fmtUSD(e.amount_usd) : '';
+      const rb = e.running_balance || 0;
+      const rbSfx = e.balance_suffix || 'Cr';
+      return `<tr class="${trCls}">
+        <td>${e.entry_date||''}</td>
+        <td><span class="ldg-type ${e.entry_type}">${e.entry_type}</span></td>
+        <td style="font-size:10px">${e.ref_number||''}</td>
+        <td style="font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(e.description||'').replace(/"/g,'')}">${e.description||''}</td>
+        <td style="text-align:right;color:var(--accent);font-weight:600">${dr}</td>
+        <td style="text-align:right;color:var(--accent2);font-weight:600">${cr}</td>
+        <td style="text-align:right;font-weight:700">${fmtUSD(Math.abs(rb))} <span style="font-size:9px;color:var(--text2)">${rbSfx}</span></td>
+        <td><button class="btn btn-ghost btn-xs" style="padding:2px 6px;font-size:9px" onclick="sbDeleteEntry('${sid}','${e.id}')">✕</button></td>
+      </tr>`;
+    }).join('') || '<tr class="empty-row"><td colspan="8">No entries yet</td></tr>';
+  } catch(err) { console.error(err); }
+}
+
+async function sbLoadOutstanding(sid) {
+  try {
+    const r = await fetch('/api/suppliers/' + sid + '/outstanding');
+    const data = await r.json();
+    const buckets = data.buckets || {};
+    const bucketDefs = [
+      {key:'91_plus', label:'91+ Days (Critical)', cls:'age-crit'},
+      {key:'61_90', label:'61–90 Days', cls:'age-alert'},
+      {key:'31_60', label:'31–60 Days', cls:'age-warn'},
+      {key:'0_30', label:'0–30 Days (Current)', cls:'age-ok'},
+    ];
+    let html = '';
+    bucketDefs.forEach(bd => {
+      const items = buckets[bd.key] || [];
+      if (!items.length) return;
+      html += `<div style="margin-bottom:16px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">
+          <span class="age-chip ${bd.cls}">${bd.label}</span>
+        </div>
+        <table class="ledger-tbl"><thead><tr>
+          <th>Bill Date</th><th>Due Date</th><th>Reference</th>
+          <th style="text-align:right">Pending (CNY)</th><th>Days</th>
+        </tr></thead><tbody>`;
+      items.forEach(it => {
+        html += `<tr><td>${it.bill_date||''}</td><td>${it.due_date||''}</td>
+          <td>${it.ref||''}</td>
+          <td style="text-align:right;font-weight:700;color:var(--red)">${fmtUSD(it.pending_usd)}</td>
+          <td><span class="age-chip ${bd.cls}">${it.days_overdue}d</span></td></tr>`;
+      });
+      html += '</tbody></table></div>';
+    });
+    document.getElementById('sbAgeingContent').innerHTML = html || '<p style="color:var(--text2);padding:20px">No outstanding bills.</p>';
+  } catch(e) { console.error(e); }
+}
+
+function sbShowSubTab(tab) {
+  _sbCurrentSubTab = tab;
+  document.getElementById('sbSubAll').classList.toggle('active', tab === 'all');
+  document.getElementById('sbSubOut').classList.toggle('active', tab === 'outstanding');
+  document.getElementById('sbPanelAll').style.display = tab === 'all' ? '' : 'none';
+  document.getElementById('sbPanelOut').style.display = tab === 'outstanding' ? '' : 'none';
+  if (tab === 'outstanding' && _sbCurrentSid) sbLoadOutstanding(_sbCurrentSid);
+}
+
+async function sbDeleteEntry(sid, eid) {
+  if (!confirm('Delete this ledger entry? (soft-delete, data preserved)')) return;
+  await fetch('/api/suppliers/' + sid + '/ledger/' + eid, { method: 'DELETE' });
+  await sbLoadLedger(sid);
+  sbLoadDashboard();
+}
+
+// ── Add Entry Modal ──────────────────────────────────────────
+const SB_DR_TYPES = new Set(['PAYMENT','DEBIT_NOTE','ADJUSTMENT']);
+const SB_CR_TYPES = new Set(['INVOICE','CREDIT_NOTE']);
+
+function sbOpenEntry(sid) {
+  // Reset form
+  document.getElementById('sbEntryEid').value = '';
+  document.getElementById('sbEntrySid').value = sid || '';
+  document.getElementById('sbEntryDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('sbEntryAmt').value = '';
+  document.getElementById('sbEntryINR').value = '';
+  document.getElementById('sbEntryDesc').value = '';
+  document.getElementById('sbEntryNotes').value = '';
+  document.getElementById('sbEntryBankRef').value = '';
+
+  // Populate supplier dropdown
+  const supSel = document.getElementById('sbEntrySup');
+  supSel.innerHTML = '<option value="">— Select Supplier —</option>' +
+    _sbAllSuppliers.map(s => `<option value="${s.id}" ${s.id===sid?'selected':''}>${s.company||s.name||s.id}</option>`).join('');
+  if (sid) supSel.value = sid;
+
+  // Load PO dropdown for selected supplier
+  if (sid) sbEntrySupChanged();
+
+  // Set default rate from settings (use CNY→INR rate)
+  fetch('/api/settings').then(r=>r.json()).then(st => {
+    const rate = st.default_rmb_rate || st.lc_rmb_rate || 11.5;
+    document.getElementById('sbEntryRate').value = rate;
+  }).catch(()=>{});
+
+  sbEntryTypeChanged();
+  document.getElementById('sbEntryOverlay').classList.add('open');
+}
+
+async function sbEntrySupChanged() {
+  const sid = document.getElementById('sbEntrySup').value;
+  const poSel = document.getElementById('sbEntryPO');
+  poSel.innerHTML = '<option value="">— None —</option>';
+  if (!sid) return;
+  try {
+    const r = await fetch('/api/po?supplier_id=' + sid);
+    const data = await r.json();
+    const pos = data.pos || data || [];
+    pos.forEach(p => {
+      poSel.innerHTML += `<option value="${p.id}">${p.po_number||p.id} — ${p.status}</option>`;
+    });
+  } catch(e) {}
+}
+
+function sbEntryTypeChanged() {
+  const t = document.getElementById('sbEntryType').value;
+  const isPayment = t === 'PAYMENT';
+  document.getElementById('sbPaymentFields').style.display = isPayment ? '' : 'none';
+  const hint = SB_DR_TYPES.has(t)
+    ? 'DR entry — decreases payable (we paid or reduced amount owed)'
+    : 'CR entry — increases payable (we owe supplier more)';
+  document.getElementById('sbEntryDrCrHint').textContent = hint;
+}
+
+function sbCalcINR() {
+  const amt = parseFloat(document.getElementById('sbEntryAmt').value) || 0;
+  const rate = parseFloat(document.getElementById('sbEntryRate').value) || 11.5;
+  const inr = amt * rate;
+  document.getElementById('sbEntryINR').value = inr > 0 ? '₹ ' + inr.toLocaleString('en-IN', {minimumFractionDigits:2,maximumFractionDigits:2}) : '';
+}
+
+async function sbSaveEntry() {
+  const sid = document.getElementById('sbEntrySup').value;
+  const entryType = document.getElementById('sbEntryType').value;
+  const amt = parseFloat(document.getElementById('sbEntryAmt').value);
+  if (!sid) { toast('Please select a supplier', 'err'); return; }
+  if (!amt || amt <= 0) { toast('Amount must be positive (CNY)', 'err'); return; }
+  const dr_cr = SB_DR_TYPES.has(entryType) ? 'DR' : 'CR';
+  const payload = {
+    entry_type: entryType, dr_cr,
+    entry_date: document.getElementById('sbEntryDate').value,
+    amount_cny: amt,
+    cny_rate: parseFloat(document.getElementById('sbEntryRate').value) || 11.5,
+    description: document.getElementById('sbEntryDesc').value,
+    notes: document.getElementById('sbEntryNotes').value,
+    ref_number: document.getElementById('sbEntryPO').value,
+    po_id: document.getElementById('sbEntryPO').value || null,
+    payment_mode: document.getElementById('sbEntryPayMode')?.value || '',
+    bank_ref: document.getElementById('sbEntryBankRef')?.value || '',
+  };
+  try {
+    const r = await fetch('/api/suppliers/' + sid + '/ledger', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    if (!r.ok) { const e = await r.json(); toast(e.error || 'Error saving entry', 'err'); return; }
+    toast('Entry saved successfully', 'ok');
+    closeModal('sbEntryOverlay');
+    if (_sbCurrentSid === sid) await sbLoadLedger(sid);
+    sbLoadDashboard();
+  } catch(err) { toast('Network error: ' + err.message, 'err'); }
+}
+
+// ── Supplier Payment Terms: hook into saveSupplier ───────────
+const _origSaveSupplier = typeof saveSupplier === 'function' ? saveSupplier : null;
+
+async function sbSavePaymentTerms(sid) {
+  const payload = {
+    terms_type: document.getElementById('sup_terms_type')?.value || 'NET30',
+    advance_pct: parseFloat(document.getElementById('sup_advance_pct')?.value) || 30,
+    balance_trigger: document.getElementById('sup_balance_trigger')?.value || 'ON_INVOICE',
+    credit_days: parseInt(document.getElementById('sup_credit_days')?.value) || 0,
+    notes: document.getElementById('sup_terms_notes')?.value || '',
+  };
+  try {
+    await fetch('/api/suppliers/' + sid + '/payment-terms', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+  } catch(e) { console.error('Payment terms save error:', e); }
+}
+
+async function sbLoadPaymentTerms(sid) {
+  try {
+    const r = await fetch('/api/suppliers/' + sid + '/payment-terms');
+    const t = await r.json();
+    if (!t.terms_type) return;
+    const setV = (id, v) => { const el=document.getElementById(id); if(el && v!==undefined) el.value = v; };
+    setV('sup_terms_type', t.terms_type);
+    setV('sup_credit_days', t.credit_days);
+    setV('sup_advance_pct', t.advance_pct);
+    setV('sup_balance_trigger', t.balance_trigger);
+    setV('sup_terms_notes', t.notes);
+  } catch(e) {}
+}
+
+// Monkey-patch openSupplierModal to load payment terms when editing
+document.addEventListener('DOMContentLoaded', () => {
+  const origOpen = window.openSupplierModal;
+  if (typeof origOpen === 'function') {
+    window.openSupplierModal = function(sup) {
+      origOpen(sup);
+      if (sup && sup.id) {
+        setTimeout(() => sbLoadPaymentTerms(sup.id), 100);
+      } else {
+        // Reset terms fields for new supplier
+        ['sup_terms_type','sup_credit_days','sup_advance_pct','sup_balance_trigger','sup_terms_notes']
+          .forEach(id => { const el = document.getElementById(id); if(el) el.value = el.defaultValue || ''; });
+        const tt = document.getElementById('sup_terms_type');
+        if (tt) tt.value = 'NET30';
+        const cd = document.getElementById('sup_credit_days');
+        if (cd) cd.value = '30';
+        const ap = document.getElementById('sup_advance_pct');
+        if (ap) ap.value = '30';
+      }
+    };
+  }
+
+  // Monkey-patch saveSupplier to also save payment terms
+  const origSave = window.saveSupplier;
+  if (typeof origSave === 'function') {
+    window.saveSupplier = async function() {
+      // Get supplier ID before saving (for edit) or after (for new)
+      const existingId = document.getElementById('supplierId')?.value;
+      await origSave.call(this);
+      // After save, get the ID (may be new or existing)
+      const newId = document.getElementById('supplierId')?.value || existingId;
+      if (newId) await sbSavePaymentTerms(newId);
+    };
+  }
+});
+</script>
 
 </body>
 </html>
