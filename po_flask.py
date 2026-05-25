@@ -4918,6 +4918,114 @@ def _get_shipment_with_details(cursor, shipment_id):
     return ship
 
 
+# ── GET /api/shipments/active-items ───────────────────────────────────────────
+
+@app.route("/api/shipments/active-items", methods=["GET"])
+def get_active_shipments_items():
+    """Return all items for all active shipments, with unit prices calculated in INR."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = 'default_usd_rate'")
+        usd_rate_row = cursor.fetchone()
+        usd_rate = float(usd_rate_row['value']) if usd_rate_row else 84.0
+        
+        cursor.execute("SELECT value FROM settings WHERE key = 'default_rmb_rate'")
+        rmb_rate_row = cursor.fetchone()
+        rmb_rate = float(rmb_rate_row['value']) if rmb_rate_row else 11.5
+        
+        cursor.execute("""
+            SELECT 
+                spl.shipment_id,
+                pi.item_name,
+                pi.qty,
+                pi.unit_price,
+                po.currency,
+                po.status,
+                po.po_number
+            FROM shipment_po_link spl
+            JOIN purchase_orders po ON po.id = spl.po_id
+            JOIN po_items pi ON pi.po_id = po.id
+            JOIN shipments s ON s.id = spl.shipment_id
+            WHERE po.deleted_at IS NULL AND s.deleted_at IS NULL
+        """)
+        rows = cursor.fetchall()
+        
+        result = {}
+        for row in rows:
+            sid = row['shipment_id']
+            if sid not in result:
+                result[sid] = []
+            
+            # Calculate price in INR based on currency
+            currency = row['currency'] or 'USD'
+            price = float(row['unit_price'] or 0)
+            if currency == 'USD':
+                price_inr = round(price * usd_rate, 2)
+            elif currency == 'CNY':
+                price_inr = round(price * rmb_rate, 2)
+            else:
+                price_inr = price # Fallback
+                
+            result[sid].append({
+                "item_name": row['item_name'],
+                "qty": row['qty'],
+                "unit_price_inr": price_inr,
+                "status": row['status'],
+                "po_number": row['po_number']
+            })
+            
+    return jsonify(result)
+
+# ── GET /api/shipments/<sid>/items ────────────────────────────────────────────
+
+@app.route("/api/shipments/<sid>/items", methods=["GET"])
+def get_shipment_items(sid):
+    """Fetch all items from all POs linked to a shipment, with unit prices calculated in INR."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = 'default_usd_rate'")
+        usd_rate_row = cursor.fetchone()
+        usd_rate = float(usd_rate_row['value']) if usd_rate_row else 84.0
+        
+        cursor.execute("SELECT value FROM settings WHERE key = 'default_rmb_rate'")
+        rmb_rate_row = cursor.fetchone()
+        rmb_rate = float(rmb_rate_row['value']) if rmb_rate_row else 11.5
+
+        cursor.execute("""
+            SELECT 
+                pi.item_name,
+                pi.qty,
+                pi.unit_price,
+                po.currency,
+                po.status,
+                po.po_number
+            FROM shipment_po_link spl
+            JOIN purchase_orders po ON po.id = spl.po_id
+            JOIN po_items pi ON pi.po_id = po.id
+            WHERE spl.shipment_id = ? AND po.deleted_at IS NULL
+        """, (sid,))
+        rows = cursor.fetchall()
+        items = []
+        for row in rows:
+            currency = row['currency'] or 'USD'
+            price = float(row['unit_price'] or 0)
+            if currency == 'USD':
+                price_inr = round(price * usd_rate, 2)
+            elif currency == 'CNY':
+                price_inr = round(price * rmb_rate, 2)
+            else:
+                price_inr = price # Fallback
+
+            items.append({
+                "item_name": row['item_name'],
+                "qty": row['qty'],
+                "unit_price_inr": price_inr,
+                "status": row['status'],
+                "po_number": row['po_number']
+            })
+            
+    return jsonify(items)
+
 # ── GET /api/shipments ────────────────────────────────────────────────────────
 
 @app.route("/api/shipments", methods=["GET"])

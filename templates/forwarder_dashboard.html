@@ -272,8 +272,14 @@ select option{background:#111520;color:#fff;padding:8px}
     <div class="stat-card gray"><div class="stat-val" id="stat-delivered">0</div><div class="stat-label">Delivered (MTD)</div></div>
   </div>
 
+  <!-- Shipments View Toggles -->
+  <div style="display:flex; gap: 10px; margin-bottom: 20px;">
+    <button id="btn-tab-table" class="btn btn-primary" onclick="switchTab('table')">📇 Active Shipments</button>
+    <button id="btn-tab-planner" class="btn btn-ghost" onclick="switchTab('planner')">📅 Arrival Planner</button>
+  </div>
+
   <!-- Shipments table -->
-  <div class="table-wrap">
+  <div id="view-table" class="table-wrap">
     <div class="table-header">
       <div class="table-title">Active Shipments</div>
       <select id="filterStatus" onchange="renderTable()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;color:var(--text);font-family:var(--font);font-size:11px;cursor:pointer;color-scheme:dark">
@@ -301,6 +307,11 @@ select option{background:#111520;color:#fff;padding:8px}
       </thead>
       <tbody id="shipments-tbody"></tbody>
     </table>
+  </div>
+
+  <!-- Arrival Planner View -->
+  <div id="view-planner" style="display:none; margin-bottom: 30px;">
+    <div id="arrival-planner-container" style="display:flex; flex-direction:column; gap: 20px;"></div>
   </div>
 
   <!-- Gantt -->
@@ -467,6 +478,11 @@ async function init() {
 async function refresh() {
   await Promise.all([fetchStats(), fetchShipments(), fetchAllPOs()]);
   renderPendingPOs();
+  // Clear planner cache on refresh
+  activeItemsData = null;
+  if (document.getElementById('view-planner').style.display === 'block') {
+    renderArrivalPlanner();
+  }
 }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -610,7 +626,10 @@ function renderTable() {
     return `
       <tr class="${rowCls}" onclick="openDrawer('${s.id}')" style="cursor:pointer">
         <td>
-          <div style="font-weight:700;color:#fff">${esc(s.description)||'<span style="color:var(--text3)">—</span>'}</div>
+          <div style="font-weight:700;color:#fff">
+            <span id="chevron-${s.id}" onclick="toggleItems(event, '${s.id}')" style="display:inline-block; transition: transform 0.2s; cursor:pointer; margin-right: 6px;">▶</span>
+            ${esc(s.description)||'<span style="color:var(--text3)">—</span>'}
+          </div>
           <div style="font-size:10px;color:var(--text2);margin-top:2px">${s.booking_ref?'Ref: '+esc(s.booking_ref):'<span style="color:var(--text3)">No booking ref yet</span>'}</div>
         </td>
         <td style="font-weight:600">${esc(s.forwarder_name)}</td>
@@ -635,6 +654,11 @@ function renderTable() {
             : `<span style="color:var(--text3);font-size:11px">—</span>`}
         </td>
       </tr>
+      <tr id="items-row-${s.id}" style="display:none; background: rgba(59,130,246,0.02);">
+        <td colspan="8" style="padding: 0;">
+          <div id="items-container-${s.id}" style="padding: 10px 40px;"></div>
+        </td>
+      </tr>
     `;
   }).join('');
 }
@@ -653,6 +677,170 @@ function getDays(ds) {
 function sortTable(f) {
   sortField===f ? (sortOrder=sortOrder==='asc'?'desc':'asc') : (sortField=f, sortOrder='asc');
   renderTable();
+}
+
+// ─── PO Items Expand (Feature A) ──────────────────────────────────────────────
+async function toggleItems(e, id) {
+  e.stopPropagation();
+  const tr = document.getElementById('items-row-' + id);
+  const icon = document.getElementById('chevron-' + id);
+  if (!tr) return;
+  
+  if (tr.style.display === 'none') {
+    tr.style.display = 'table-row';
+    icon.style.transform = 'rotate(90deg)';
+    
+    const container = document.getElementById('items-container-' + id);
+    if (!container.innerHTML) {
+      container.innerHTML = '<div style="padding: 15px; color: var(--text3); text-align: center;">Loading items...</div>';
+      try {
+        const res = await fetch(`/api/shipments/${id}/items`);
+        const items = await res.json();
+        if (items && items.length) {
+          container.innerHTML = `
+            <table style="width: 100%; margin: 10px 0; background: rgba(0,0,0,0.2); border-radius: 8px;">
+              <thead>
+                <tr>
+                  <th style="background: rgba(0,0,0,0.3); border-bottom: 1px solid var(--border); padding: 8px 12px; color: var(--text2);">Item Name</th>
+                  <th style="background: rgba(0,0,0,0.3); border-bottom: 1px solid var(--border); padding: 8px 12px; color: var(--text2);">Quantity</th>
+                  <th style="background: rgba(0,0,0,0.3); border-bottom: 1px solid var(--border); padding: 8px 12px; color: var(--text2);">Unit Price (INR)</th>
+                  <th style="background: rgba(0,0,0,0.3); border-bottom: 1px solid var(--border); padding: 8px 12px; color: var(--text2);">PO Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${items.map(it => `
+                  <tr>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text); font-weight: 600;">${esc(it.item_name)}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); font-weight: 700;">${it.qty}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.03);">₹${it.unit_price_inr.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.03);"><span class="badge ${STATUS_BADGE[it.status] || 'badge-gray'}" style="font-size:9px;">${it.status}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        } else {
+          container.innerHTML = '<div style="padding: 15px; color: var(--text3); text-align: center; font-style: italic;">No items found in this shipment.</div>';
+        }
+      } catch (err) {
+        container.innerHTML = '<div style="padding: 15px; color: var(--red); text-align: center;">Failed to load items.</div>';
+      }
+    }
+  } else {
+    tr.style.display = 'none';
+    icon.style.transform = 'rotate(0deg)';
+  }
+}
+
+// ─── Arrival Planner (Feature B) ──────────────────────────────────────────────
+let activeItemsData = null;
+
+async function switchTab(tab) {
+  if (tab === 'table') {
+    document.getElementById('view-table').style.display = 'block';
+    document.getElementById('view-planner').style.display = 'none';
+    document.getElementById('btn-tab-table').className = 'btn btn-primary';
+    document.getElementById('btn-tab-planner').className = 'btn btn-ghost';
+  } else {
+    document.getElementById('view-table').style.display = 'none';
+    document.getElementById('view-planner').style.display = 'block';
+    document.getElementById('btn-tab-table').className = 'btn btn-ghost';
+    document.getElementById('btn-tab-planner').className = 'btn btn-primary';
+    await renderArrivalPlanner();
+  }
+}
+
+async function renderArrivalPlanner() {
+  const container = document.getElementById('arrival-planner-container');
+  
+  if (!activeItemsData) {
+    container.innerHTML = '<div style="color:var(--text3); padding: 40px; text-align: center;">Loading planner data...</div>';
+    try {
+      const res = await fetch('/api/shipments/active-items');
+      activeItemsData = await res.json();
+    } catch(err) {
+      container.innerHTML = '<div style="color:var(--red); padding: 40px; text-align: center;">Failed to load item data.</div>';
+      return;
+    }
+  }
+
+  // Filter only active shipments (not delivered) and sort by expected arrival
+  let plannerShipments = shipments.filter(s => s.status !== 'Delivered' && s.expected_arrival);
+  plannerShipments.sort((a,b) => {
+    let va = getDays(a.expected_arrival);
+    let vb = getDays(b.expected_arrival);
+    return va - vb;
+  });
+
+  if (!plannerShipments.length) {
+    container.innerHTML = '<div style="color:var(--text3); padding: 40px; text-align: center; font-style: italic;">No active shipments in transit.</div>';
+    return;
+  }
+  
+  container.innerHTML = plannerShipments.map(s => {
+    const days = getDays(s.expected_arrival);
+    const isOver = days < 0;
+    
+    // Progress bar calculation based on 30-day fixed transit
+    let progress = 0;
+    if (s.departure_date) {
+        const elapsed = -getDays(s.departure_date); 
+        progress = Math.max(0, Math.min(100, (elapsed / 30) * 100));
+    }
+    
+    const items = activeItemsData[s.id] || [];
+    
+    return `
+      <div style="background: linear-gradient(135deg,var(--bg2),var(--bg3)); border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow-md);">
+        <div style="display:flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+          <div>
+            <div style="font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 4px;">${esc(s.description) || 'Shipment'}</div>
+            <div style="font-size: 12px; color: var(--text2);">
+              Forwarder: <span style="color:var(--cyan);">${esc(s.forwarder_name)}</span> &nbsp;·&nbsp; 
+              POs: ${s.linked_pos.map(p => esc(p.po_number)).join(', ')}
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 14px; font-weight: 800; color: ${isOver ? 'var(--red)' : 'var(--accent)'}; margin-bottom: 4px;">
+              ${isOver ? 'OVERDUE' : `Arriving in ${days} days`}
+            </div>
+            <div style="font-size: 11px; color: var(--text2);">Exp: ${s.expected_arrival}</div>
+          </div>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <div style="display:flex; justify-content: space-between; font-size: 10px; color: var(--text2); margin-bottom: 6px; font-weight: 700; text-transform: uppercase;">
+            <span>Departure: ${s.departure_date || 'N/A'}</span>
+            <span>${Math.round(progress)}% Journey</span>
+          </div>
+          <div style="height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; border: 1px solid var(--border2);">
+            <div style="height: 100%; width: ${progress}%; background: linear-gradient(90deg, var(--accent2), var(--cyan)); border-radius: 3px;"></div>
+          </div>
+        </div>
+        
+        ${items.length ? `
+          <table style="width: 100%; font-size: 11px;">
+            <thead>
+              <tr>
+                <th style="padding: 6px 10px; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border);">Item</th>
+                <th style="padding: 6px 10px; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border);">Status</th>
+                <th style="padding: 6px 10px; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border); text-align: right;">Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map(it => `
+                <tr>
+                  <td style="padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text);">${esc(it.item_name)}</td>
+                  <td style="padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.03);"><span class="badge ${STATUS_BADGE[it.status] || 'badge-gray'}" style="font-size:9px;">${it.status}</span></td>
+                  <td style="padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.03); text-align: right; font-weight: 700;">${it.qty}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : `<div style="font-size: 11px; color: var(--text3); font-style: italic;">No items found</div>`}
+      </div>
+    `;
+  }).join('');
 }
 
 // ─── Status inline update ─────────────────────────────────────────────────────
