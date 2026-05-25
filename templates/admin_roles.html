@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RBAC Admin — Greenwave Traders</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* Base Styles Matching Portal */
+:root{
+  --bg:#0b0e17;--bg2:#111520;--bg3:#161c2e;--bg4:#1c2338;
+  --border:#1f2a42;--border2:#2a3655;
+  --text:#c8d0e8;--text2:#6b7499;--text3:#3d4a6e;
+  --accent:#22c55e;--accent2:#3b82f6;--accent3:#a78bfa;
+  --red:#ef4444; --font:'JetBrains Mono','Courier New',monospace;
+  --font-cn:'Noto Sans SC','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;padding:40px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:30px}
+h1{font-size:24px;font-weight:800;color:#fff}
+.btn{background:var(--accent2);color:#fff;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-family:var(--font);font-size:12px;box-shadow:0 4px 12px rgba(59,130,246,0.3);transition:0.2s;}
+.btn:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(59,130,246,0.4)}
+.btn-ghost{background:transparent;border:1px solid var(--border2);color:var(--text2);box-shadow:none}
+.btn-ghost:hover{background:rgba(255,255,255,0.05);color:#fff;transform:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px}
+h2{font-size:16px;color:#fff;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:12px}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th{text-align:left;padding:10px;font-size:10px;color:var(--text2);text-transform:uppercase;border-bottom:1px solid var(--border)}
+td{padding:12px 10px;border-bottom:1px solid rgba(255,255,255,0.05);color:var(--text)}
+tr:hover td{background:rgba(59,130,246,0.05)}
+.badge{background:rgba(59,130,246,0.15);color:var(--accent2);padding:4px 8px;border-radius:6px;font-size:10px;border:1px solid rgba(59,130,246,0.3)}
+
+/* Matrix Checkbox */
+.cb-wrap{display:flex;align-items:center;justify-content:center}
+input[type=checkbox]{appearance:none;width:18px;height:18px;background:rgba(0,0,0,0.3);border:1px solid var(--border2);border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+input[type=checkbox]:checked{background:var(--accent2);border-color:var(--accent2)}
+input[type=checkbox]:checked::after{content:'✓';color:#fff;font-size:12px;font-weight:bold}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.8);display:none;align-items:center;justify-content:center;z-index:100}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:30px;width:100%;max-width:400px}
+.form-group{margin-bottom:16px}
+label{display:block;font-size:11px;color:var(--text2);margin-bottom:6px;text-transform:uppercase}
+input[type=text], input[type=password], select{width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border2);padding:10px;border-radius:8px;color:#fff;font-family:var(--font)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Access Control (RBAC)</h1>
+    <p style="color:var(--text2);margin-top:4px">Manage Users, Roles, and Page Permissions</p>
+  </div>
+  <div>
+    <button class="btn btn-ghost" onclick="window.location.href='/'">← Back to Portal</button>
+  </div>
+</div>
+
+<div class="grid">
+  <!-- Users Panel -->
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>Users</h2>
+      <button class="btn" onclick="openUserModal()">+ New User</button>
+    </div>
+    <table>
+      <thead><tr><th>Username</th><th>Role</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody id="users-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Roles Panel -->
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>Roles</h2>
+      <button class="btn" onclick="openRoleModal()">+ New Role</button>
+    </div>
+    <table>
+      <thead><tr><th>Role Name</th><th>Description</th><th>Users</th></tr></thead>
+      <tbody id="roles-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Permission Matrix Panel -->
+<div class="panel" style="margin-top:20px">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <h2>Permission Matrix</h2>
+    <button class="btn" onclick="saveMatrix()">💾 Save Matrix</button>
+  </div>
+  <p style="font-size:11px;color:var(--text2);margin-bottom:16px">Check the boxes to assign page access to specific roles. The Admin role has access to everything by default.</p>
+  
+  <div style="overflow-x:auto">
+    <table id="matrix-table">
+      <thead>
+        <tr id="matrix-head-row">
+          <th>Page / Permission</th>
+          <!-- Roles injected here -->
+        </tr>
+      </thead>
+      <tbody id="matrix-body">
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modals -->
+<div class="modal-overlay" id="user-modal">
+  <div class="modal">
+    <h2 id="u-title">Add User</h2>
+    <input type="hidden" id="u-id">
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="u-username">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="u-password" placeholder="Leave blank to keep unchanged">
+    </div>
+    <div class="form-group">
+      <label>Role</label>
+      <select id="u-role"></select>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px">
+      <button class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button class="btn" onclick="saveUser()">Save User</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="role-modal">
+  <div class="modal">
+    <h2>Add Role</h2>
+    <input type="hidden" id="r-id">
+    <div class="form-group">
+      <label>Role Name</label>
+      <input type="text" id="r-name">
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="r-desc">
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px">
+      <button class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button class="btn" onclick="saveRoleModal()">Save Role</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let state = { users: [], roles: [], permissions: [] };
+
+async function loadData() {
+  const [uRes, rRes, pRes] = await Promise.all([
+    fetch('/api/admin/users').then(r=>r.json()),
+    fetch('/api/admin/roles').then(r=>r.json()),
+    fetch('/api/admin/permissions').then(r=>r.json())
+  ]);
+  state.users = uRes; state.roles = rRes; state.permissions = pRes;
+  render();
+}
+
+function render() {
+  // Render Users
+  const uTbody = document.getElementById('users-tbody');
+  uTbody.innerHTML = state.users.map(u => {
+    const role = state.roles.find(r => r.id === u.role_id);
+    return `<tr>
+      <td><strong>${u.username}</strong></td>
+      <td><span class="badge">${role ? role.name : 'None'}</span></td>
+      <td style="font-size:10px">${u.created_at.split(' ')[0]}</td>
+      <td><button class="btn btn-ghost" style="padding:4px 8px;font-size:10px" onclick='editUser(${JSON.stringify(u).replace(/'/g,"")})'>Edit</button></td>
+    </tr>`;
+  }).join('');
+
+  // Render Roles
+  const rTbody = document.getElementById('roles-tbody');
+  rTbody.innerHTML = state.roles.map(r => {
+    const count = state.users.filter(u => u.role_id === r.id).length;
+    return `<tr>
+      <td><strong style="color:var(--accent2)">${r.name}</strong></td>
+      <td><span style="font-size:11px">${r.description || ''}</span></td>
+      <td>${count} users</td>
+    </tr>`;
+  }).join('');
+
+  // Render Matrix
+  const mHead = document.getElementById('matrix-head-row');
+  mHead.innerHTML = `<th>Page / Permission</th>` + state.roles.map(r => `<th style="text-align:center">${r.name}</th>`).join('');
+
+  const mBody = document.getElementById('matrix-body');
+  mBody.innerHTML = state.permissions.map(p => {
+    let row = `<tr><td><strong>${p.name}</strong><br><span style="font-size:9px;color:var(--text2)">${p.page_identifier}</span></td>`;
+    state.roles.forEach(r => {
+      const isChecked = r.permissions.includes(p.id);
+      const disabled = r.name === 'Admin' ? 'disabled' : '';
+      row += `<td style="text-align:center">
+        <div class="cb-wrap"><input type="checkbox" data-role="${r.id}" data-perm="${p.id}" ${isChecked ? 'checked' : ''} ${disabled}></div>
+      </td>`;
+    });
+    row += `</tr>`;
+    return row;
+  }).join('');
+}
+
+// Modals
+function openUserModal() {
+  document.getElementById('u-title').innerText = 'Add User';
+  document.getElementById('u-id').value = '';
+  document.getElementById('u-username').value = '';
+  document.getElementById('u-password').value = '';
+  
+  const rSelect = document.getElementById('u-role');
+  rSelect.innerHTML = state.roles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  document.getElementById('user-modal').style.display = 'flex';
+}
+
+function editUser(u) {
+  openUserModal();
+  document.getElementById('u-title').innerText = 'Edit User';
+  document.getElementById('u-id').value = u.id;
+  document.getElementById('u-username').value = u.username;
+  document.getElementById('u-role').value = u.role_id;
+}
+
+function openRoleModal() {
+  document.getElementById('r-id').value = '';
+  document.getElementById('r-name').value = '';
+  document.getElementById('r-desc').value = '';
+  document.getElementById('role-modal').style.display = 'flex';
+}
+
+function closeModals() {
+  document.getElementById('user-modal').style.display = 'none';
+  document.getElementById('role-modal').style.display = 'none';
+}
+
+async function saveUser() {
+  const id = document.getElementById('u-id').value;
+  const username = document.getElementById('u-username').value;
+  const password = document.getElementById('u-password').value;
+  const role_id = document.getElementById('u-role').value;
+  
+  if(!username) return alert('Username required');
+  if(!id && !password) return alert('Password required for new user');
+
+  await fetch('/api/admin/users', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id, username, password, role_id})
+  });
+  closeModals();
+  loadData();
+}
+
+async function saveRoleModal() {
+  const name = document.getElementById('r-name').value;
+  const desc = document.getElementById('r-desc').value;
+  if(!name) return alert('Role name required');
+
+  await fetch('/api/admin/roles', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, description: desc, permissions: []})
+  });
+  closeModals();
+  loadData();
+}
+
+async function saveMatrix() {
+  for (const role of state.roles) {
+    if (role.name === 'Admin') continue; // Skip admin
+    
+    // Find all checked boxes for this role
+    const checkboxes = document.querySelectorAll(`input[type="checkbox"][data-role="${role.id}"]`);
+    const perms = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.dataset.perm);
+    
+    await fetch('/api/admin/roles', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        id: role.id,
+        name: role.name,
+        description: role.description,
+        permissions: perms
+      })
+    });
+  }
+  alert('Matrix saved successfully!');
+  loadData();
+}
+
+// Init
+loadData();
+</script>
+</body>
+</html>

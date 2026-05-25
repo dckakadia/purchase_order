@@ -555,7 +555,40 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cle_entry_date ON customer_ledger_entries(entry_date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cle_entry_type ON customer_ledger_entries(entry_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cle_deleted_at ON customer_ledger_entries(deleted_at)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cle_due_date ON customer_ledger_entries(due_date)")
+        # ── RBAC (ROLE-BASED ACCESS CONTROL) ────────────────────────────────────
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS roles (
+                id TEXT PRIMARY KEY,
+                name TEXT UNIQUE NOT NULL,
+                description TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS permissions (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                page_identifier TEXT UNIQUE NOT NULL
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS role_permissions (
+                role_id TEXT NOT NULL,
+                permission_id TEXT NOT NULL,
+                PRIMARY KEY (role_id, permission_id),
+                FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+                FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role_id TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE SET NULL
+            )
+        """)
     
         conn.commit()
     except Exception:
@@ -591,11 +624,61 @@ def init_default_settings(conn):
     conn.commit()
 
 
+def init_default_rbac(conn):
+    """Initialize default roles, permissions, and admin user"""
+    import uuid
+    import hashlib
+    cursor = conn.cursor()
+
+    # 1. Define default permissions
+    perms = [
+        ("po_dashboard", "Purchase Orders Dashboard"),
+        ("supplier_books", "Supplier Books"),
+        ("customer_books", "Customer Books"),
+        ("forwarder_dashboard", "Forwarder Dashboard"),
+        ("admin_rbac", "Admin Panel (Users & Roles)"),
+    ]
+    
+    for page_id, name in perms:
+        cursor.execute(
+            "INSERT OR IGNORE INTO permissions (id, name, page_identifier) VALUES (?, ?, ?)",
+            (str(uuid.uuid4()), name, page_id)
+        )
+
+    # 2. Define Admin Role
+    cursor.execute("SELECT id FROM roles WHERE name = 'Admin'")
+    admin_role = cursor.fetchone()
+    if not admin_role:
+        admin_role_id = str(uuid.uuid4())
+        cursor.execute("INSERT INTO roles (id, name, description) VALUES (?, 'Admin', 'Full access to all modules')", (admin_role_id,))
+    else:
+        admin_role_id = admin_role["id"]
+
+    # Assign all permissions to Admin
+    cursor.execute("SELECT id FROM permissions")
+    all_perm_ids = [row["id"] for row in cursor.fetchall()]
+    for pid in all_perm_ids:
+        cursor.execute("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)", (admin_role_id, pid))
+
+    # 3. Define Default Admin User
+    cursor.execute("SELECT id FROM users WHERE username = 'admin'")
+    if not cursor.fetchone():
+        # Hash for 'admin' (using sha256 for simplicity since Werkzeug isn't guaranteed here)
+        hashed_pw = hashlib.sha256("admin".encode()).hexdigest()
+        cursor.execute(
+            "INSERT INTO users (id, username, password_hash, role_id) VALUES (?, 'admin', ?, ?)",
+            (str(uuid.uuid4()), hashed_pw, admin_role_id)
+        )
+        
+    conn.commit()
+
+
 if __name__ == "__main__":
     print("Initializing database...")
     init_db()
 
     with get_db() as conn:
         init_default_settings(conn)
+        init_default_rbac(conn)
 
     print(f"[OK] Database initialized at: {get_db_path()}")

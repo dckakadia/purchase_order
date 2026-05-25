@@ -1,8 +1,8 @@
 """
 Gunicorn entry point for Purchase Order tool.
-File: /home/dckakadia/import-tools-portal/po_wrapper.py
+File: /home/dckakadia/import-tools-portal/purchase_order_wrapper.py
 """
-from po_flask import app  # noqa
+from purchase_order_app import app  # noqa
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5004)
