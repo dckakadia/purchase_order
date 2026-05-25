@@ -276,9 +276,9 @@ async function loadDashboard() {
         const data = await res.json();
         
         const sc = document.getElementById('dash-stats').children;
-        sc[0].querySelector('.stat-val').innerText = `¥ ${fmt(data.total_payable_inr)}`;
+        sc[0].querySelector('.stat-val').innerText = `¥ ${fmt(data.total_payable_usd)}`;
         sc[1].querySelector('.stat-val').innerText = data.suppliers_with_balance;
-        sc[2].querySelector('.stat-val').innerText = `¥ ${fmt(data.overdue_amount_inr)}`;
+        sc[2].querySelector('.stat-val').innerText = `¥ ${fmt(data.overdue_amount_usd)}`;
         sc[3].querySelector('.stat-val').innerText = data.avg_payment_days;
         
         const tbody = document.getElementById('dash-table-body');
@@ -296,7 +296,7 @@ async function loadDashboard() {
                 <div style="font-size:10px;color:var(--text-muted)">${p.name}</div>
               </td>
               <td style="text-align:right">
-                <div class="${p.suffix==='Dr'?'bal-dr':'bal-cr'}">¥ ${fmt(Math.abs(p.balance_inr))} ${p.suffix}</div>
+                <div class="${p.suffix==='Dr'?'bal-dr':'bal-cr'}">¥ ${fmt(Math.abs(p.balance_usd))} ${p.suffix}</div>
               </td>
               <td class="ageing-cell">${p.ageing.not_due>0 ? fmt(p.ageing.not_due):'-'}</td>
               <td class="ageing-cell">${p.ageing.days_1_30>0 ? fmt(p.ageing.days_1_30):'-'}</td>

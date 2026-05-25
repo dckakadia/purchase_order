@@ -6261,6 +6261,7 @@ def get_supplier_summary_v2():
         total_payable_usd = 0.0
         total_payable_inr = 0.0
         suppliers_with_balance = 0
+        total_overdue_usd = 0.0
         total_overdue_inr = 0.0
         weighted_overdue_days_sum = 0.0
         total_overdue_invoices_amount = 0.0
@@ -6295,6 +6296,7 @@ def get_supplier_summary_v2():
                     weighted_overdue_days_sum += inv["days_overdue"] * inv["remaining"]
                     total_overdue_invoices_amount += inv["remaining"]
                     
+            total_overdue_usd += ageing["overdue_total"]
             total_overdue_inr += ageing["overdue_total"] * cny_rate
             party_summaries.append({
                 "id": s["id"], "name": s["name"], "company": s["company"],
@@ -6311,6 +6313,7 @@ def get_supplier_summary_v2():
         "total_payable_usd": round(total_payable_usd, 2),
         "total_payable_inr": round(total_payable_inr, 2),
         "suppliers_with_balance": suppliers_with_balance,
+        "overdue_amount_usd": round(total_overdue_usd, 2),
         "overdue_amount_inr": round(total_overdue_inr, 2),
         "avg_payment_days": avg_payment_days,
         "parties": party_summaries
