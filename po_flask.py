@@ -709,6 +709,9 @@ def outstanding_summary():
         cursor.execute("SELECT id, name, company FROM suppliers ORDER BY name")
         suppliers = [dict(r) for r in cursor.fetchall()]
 
+        cursor.execute("SELECT value FROM settings WHERE key = 'default_rmb_rate'")
+        r2 = cursor.fetchone()
+
         result = []
         total_outstanding_usd = 0.0
         total_outstanding_inr = 0.0
@@ -6091,6 +6094,9 @@ def get_all_suppliers_outstanding():
         cursor = conn.cursor()
         cursor.execute("SELECT id, name, company FROM suppliers")
         suppliers = [dict(r) for r in cursor.fetchall()]
+
+        cursor.execute("SELECT value FROM settings WHERE key = 'default_rmb_rate'")
+        r2 = cursor.fetchone()
         
         parties_list = []
         totals = { "total_due": 0.0, "not_due": 0.0, "days_1_30": 0.0, "days_31_60": 0.0, "days_61_90": 0.0, "days_90_plus": 0.0 }
@@ -6253,6 +6259,9 @@ def get_supplier_summary_v2():
         cursor = conn.cursor()
         cursor.execute("SELECT id, name, company FROM suppliers")
         suppliers = [dict(r) for r in cursor.fetchall()]
+
+        cursor.execute("SELECT value FROM settings WHERE key = 'default_rmb_rate'")
+        r2 = cursor.fetchone()
         
         cursor.execute("SELECT value FROM settings WHERE key = 'default_rmb_rate'")
         rate_row = cursor.fetchone()
@@ -6442,3 +6451,4 @@ def supplier_book():
 
 if __name__ == "__main__":
     app.run(debug=True, port=8090, host="0.0.0.0")
+
