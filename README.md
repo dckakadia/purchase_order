@@ -1,119 +1,97 @@
-# Import & GST Tools Portal
+# Import Portal — Greenwave Traders
 
-A single-page dashboard that gives you access to all your Python import/GST tools through **one URL** — no need to remember ports or run scripts separately.
-
----
-
-## Architecture
-
-```
-Browser (port 80)
-      │
-   nginx  (reverse proxy)
-      │
-      ├── /          →  Portal Dashboard     (localhost:8080)
-      ├── /gst/      →  GST Reconciliation   (localhost:5001)
-      ├── /boe/      →  PI→BOE Calculator    (localhost:5002)
-      └── /landing/  →  Landing Cost Tool    (localhost:5003)
-```
-
-All 4 services run as **gunicorn** WSGI servers. The original Python scripts are **not modified**.
+A unified, single-page application dashboard for managing Purchase Orders, Supplier/Customer Ledgers, Forwarder logistics, and Quotation analytics. Built with Python (Flask) and a local SQLite database for speed and portability.
 
 ---
 
-## Files
+## Features
+
+- **Unified Dashboard**: Access all features (POs, Ledgers, Analytics) from a single seamless interface.
+- **Dynamic Role-Based Access Control (RBAC)**: Assign specific page-level permissions to users. An intuitive Admin UI allows managers to adjust access via a permission matrix.
+- **SQLite Database**: Self-contained `database.db` ensures data portability and eliminates the need for separate database servers.
+- **PM2 Process Management**: Managed via `ecosystem.config.js` for automatic restarts, log management, and robust deployment.
+
+---
+
+## Setup & Execution (Local Development)
+
+### 1. Prerequisites
+- Python 3.9+
+- A Virtual Environment (`venv`)
+
+### 2. Installation
+```bash
+# Clone the repository
+git clone https://github.com/dckakadia/purchase_order.git
+cd purchase_order
+
+# Create and activate virtual environment (Windows)
+python -m venv venv
+venv\Scripts\activate
+
+# Install dependencies (assuming you have a requirements.txt)
+pip install -r requirements.txt
+```
+
+### 3. Running the App
+Start the development server:
+```bash
+python purchase_order_app.py
+```
+*The app will be available at `http://127.0.0.1:8090`.*
+
+---
+
+## Authentication & Default Credentials
+
+The system utilizes an internal RBAC system. When the database is initialized for the first time, a default administrator account is generated.
+
+**Default Login:**
+- **Username**: `admin`
+- **Password**: `admin`
+
+> **Warning:** It is highly recommended to change the admin password via the Admin Panel immediately after your first login in a production environment.
+
+---
+
+## Deployment (Production with PM2)
+
+For production deployment on Windows or Linux, PM2 (Node.js) is recommended to keep the application running continuously in the background.
+
+```bash
+# Install PM2 globally (requires Node.js)
+npm install -g pm2
+
+# Start the application using the ecosystem config
+pm2 start ecosystem.config.js
+
+# Save the PM2 state to resurrect on reboot
+pm2 save
+```
+
+Logs can be monitored using:
+```bash
+pm2 logs purchase_order
+```
+
+---
+
+## File Structure
 
 ```
 import-tools-portal/
-├── portal.py               ← Dashboard (port 8080)
-├── gst_wrapper.py          ← Imports GST script for gunicorn
-├── boe_wrapper.py          ← Imports BOE script for gunicorn
-├── landing_cost_flask.py   ← Web version of the Tkinter landing cost app (port 5003)
-├── nginx.conf              ← Nginx reverse proxy config
-├── setup.sh                ← One-time setup (run once)
-├── start_services.sh       ← Start all 4 services
-├── stop_services.sh        ← Stop all services
-├── requirements.txt        ← Python dependencies
-└── tools/                  ← Place your original Python scripts here
-    ├── GST-Monthly-Purchase-Data_Compair-GSTN-Vs-Tally.py
-    ├── Import_BOE_to_Tally_GST_Entry.py
-    └── Import_Items_Landing_Cost_to_Factory.py   (optional, Tkinter — not used on server)
+├── purchase_order_app.py       # Main Flask application and API routes
+├── database.py                 # SQLite schema definitions and initializers
+├── ecosystem.config.js         # PM2 configuration for background execution
+├── purchase_order_wrapper.py   # WSGI/Gunicorn wrapper script for deployment
+├── data/po/                    # Persistent database storage directory
+│   ├── database.db             # The SQLite database (auto-generated)
+│   └── attachments/            # Uploaded physical files and attachments
+└── templates/                  # HTML Templates
+    ├── purchase_order.html     # Main application dashboard
+    ├── login.html              # Authentication page
+    ├── admin_roles.html        # RBAC and User management panel
+    ├── supplier_book.html      # Supplier Ledger interface
+    ├── customer_book.html      # Customer Ledger interface
+    └── forwarder_dashboard.html# Forwarder logistics interface
 ```
-
----
-
-## Setup (First Time)
-
-### Step 1: Copy files to your server
-```bash
-scp -r import-tools-portal/ user@your-server:~/
-```
-
-### Step 2: Copy your Python scripts into the tools/ folder
-```bash
-cp "GST-Monthly-Purchase-Data_Compair-GSTN-Vs-Tally.py" ~/import-tools-portal/tools/
-cp "Import_BOE_to_Tally_GST_Entry.py"                   ~/import-tools-portal/tools/
-cp "Import_Items_Landing_Cost_to_Factory.py"             ~/import-tools-portal/tools/
-```
-
-### Step 3: Run the setup script
-```bash
-cd ~/import-tools-portal
-bash setup.sh
-```
-
-This will:
-- Install Python3, nginx via apt
-- Create a Python virtual environment
-- Install all pip dependencies (flask, gunicorn, pandas, openpyxl, google-generativeai)
-- Configure nginx as reverse proxy
-- Create a systemd service for auto-start on boot
-
-### Step 4: Start the services
-```bash
-source venv/bin/activate
-bash start_services.sh
-```
-
-### Step 5: Open in browser
-```
-http://YOUR_SERVER_IP/
-```
-
----
-
-## Daily Use
-
-```bash
-# Start all tools
-bash ~/import-tools-portal/start_services.sh
-
-# Stop all tools
-bash ~/import-tools-portal/stop_services.sh
-
-# View logs
-tail -f ~/import-tools-portal/logs/gst_error.log
-tail -f ~/import-tools-portal/logs/boe_error.log
-tail -f ~/import-tools-portal/logs/landing_error.log
-tail -f ~/import-tools-portal/logs/portal_error.log
-```
-
----
-
-## Notes
-
-- **Firewall**: Only port 80 (and 22 for SSH) needs to be open externally. All tool ports (5001-5003, 8080) are internal only.
-- **Tkinter script**: The original `Import_Items_Landing_Cost_to_Factory.py` uses Tkinter (desktop GUI) and cannot run on a headless server. `landing_cost_flask.py` is a new web version with identical functionality — the Tkinter file is not touched.
-- **Script files**: `gst_wrapper.py` and `boe_wrapper.py` use Python's `importlib` to load the original scripts (which have hyphens in filenames, making direct Python import impossible). The original scripts are **unchanged**.
-- **Gemini API Key**: Required for the AI invoice scanning features in the BOE and Landing Cost tools. Enter it in the tool's interface each session.
-
----
-
-## Troubleshooting
-
-| Problem | Fix |
-|---|---|
-| Tool shows "Offline" on dashboard | Check `logs/NAME_error.log`, make sure scripts are in `tools/` |
-| nginx error on setup | Run `sudo nginx -t` to see config errors |
-| Port already in use | Run `stop_services.sh` first, then `start_services.sh` |
-| File upload fails | Check `client_max_body_size` in nginx.conf (default 50MB) |
