@@ -3444,6 +3444,13 @@ def _safe_float(val, default=0.0):
     except (ValueError, TypeError):
         return default
 
+def _safe_int(val, default=0):
+    try:
+        if val is None or val == "": return default
+        return int(float(val))
+    except (ValueError, TypeError):
+        return default
+
 @app.route("/api/po/<pid>/print", methods=["GET"])
 def print_po(pid):
     """Generate a printable HTML view of a Purchase Order"""
@@ -6659,7 +6666,12 @@ def save_role():
     
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("INSERT OR REPLACE INTO roles (id, name, description) VALUES (?, ?, ?)", (role_id, name, req.get("description", "")))
+        cursor.execute("SELECT id FROM roles WHERE id = ?", (role_id,))
+        if cursor.fetchone():
+            cursor.execute("UPDATE roles SET name = ?, description = ? WHERE id = ?", (name, req.get("description", ""), role_id))
+        else:
+            cursor.execute("INSERT INTO roles (id, name, description) VALUES (?, ?, ?)", (role_id, name, req.get("description", "")))
+        
         cursor.execute("DELETE FROM role_permissions WHERE role_id = ?", (role_id,))
         for p in perms:
             cursor.execute("INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)", (role_id, p))
@@ -6676,11 +6688,21 @@ def save_user():
     
     with get_db() as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+        exists = cursor.fetchone()
+        
         if password:
             hashed = hashlib.sha256(password.encode()).hexdigest()
-            cursor.execute("INSERT OR REPLACE INTO users (id, username, password_hash, role_id) VALUES (?, ?, ?, ?)", (user_id, username, hashed, role_id))
+            if exists:
+                cursor.execute("UPDATE users SET username = ?, password_hash = ?, role_id = ? WHERE id = ?", (username, hashed, role_id, user_id))
+            else:
+                cursor.execute("INSERT INTO users (id, username, password_hash, role_id) VALUES (?, ?, ?, ?)", (user_id, username, hashed, role_id))
         else:
-            cursor.execute("UPDATE users SET username = ?, role_id = ? WHERE id = ?", (username, role_id, user_id))
+            if exists:
+                cursor.execute("UPDATE users SET username = ?, role_id = ? WHERE id = ?", (username, role_id, user_id))
+            else:
+                return jsonify({"error": "Password required for new user"}), 400
+                
     return jsonify({"success": True, "id": user_id})
 
 if __name__ == "__main__":
