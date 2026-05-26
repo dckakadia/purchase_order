@@ -109,7 +109,25 @@ def login():
             
             if user:
                 session['user_id'] = user['id']
+                
+                # Smart redirect if they are heading to index but don't have permission
                 next_page = request.args.get("next")
+                is_root_dest = not next_page or next_page.endswith("/") or next_page.endswith("/po") or next_page.endswith("/po/")
+                
+                if is_root_dest:
+                    cursor.execute("""
+                        SELECT p.page_identifier FROM permissions p
+                        JOIN role_permissions rp ON rp.permission_id = p.id
+                        WHERE rp.role_id = (SELECT role_id FROM users WHERE id = ?)
+                    """, (user['id'],))
+                    perms = [r['page_identifier'] for r in cursor.fetchall()]
+                    
+                    if "po_dashboard" not in perms:
+                        if "supplier_book" in perms: return redirect("/supplier-book")
+                        if "customer_book" in perms: return redirect("/customer-book")
+                        if "forwarder_dashboard" in perms: return redirect("/forwarder-dashboard")
+                        if "admin_rbac" in perms: return redirect("/admin/rbac")
+                
                 return redirect(next_page or url_for("index"))
             else:
                 flash("Invalid username or password", "error")
@@ -120,6 +138,10 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+@app.errorhandler(403)
+def forbidden_error(error):
+    return render_template("403.html"), 403
 
 
 # ── HELPER FUNCTIONS ──────────────────────────────────────────────────────────
