@@ -630,6 +630,7 @@ def get_suppliers():
 
 
 @app.route("/api/suppliers", methods=["POST"])
+@require_permission("supplier_edit")
 def add_supplier():
     """Create new supplier"""
     req = request.get_json(silent=True)
@@ -682,6 +683,7 @@ def add_supplier():
 
 
 @app.route("/api/suppliers/<sid>", methods=["PUT"])
+@require_permission("supplier_edit")
 def update_supplier(sid):
     """Update supplier"""
     req = request.get_json(silent=True)
@@ -721,6 +723,7 @@ def update_supplier(sid):
 
 
 @app.route("/api/suppliers/<sid>", methods=["DELETE"])
+@require_permission("supplier_delete")
 def delete_supplier(sid):
     """Delete supplier (check for usage in POs and Quotations)"""
     with get_db() as conn:
@@ -772,6 +775,7 @@ def get_payment_terms(sid):
 
 
 @app.route("/api/suppliers/<sid>/payment-terms", methods=["POST"])
+@require_permission("supplier_edit")
 def save_payment_terms(sid):
     """Create or update payment terms for a supplier (upsert)."""
     req = request.get_json(silent=True) or {}
@@ -921,6 +925,7 @@ def get_supplier_ledger(sid):
 
 
 @app.route("/api/suppliers/<sid>/ledger", methods=["POST"])
+@require_permission("supplier_edit")
 def add_ledger_entry(sid):
     """Add a new ledger entry for a supplier (CNY / RMB amounts)."""
     req = request.get_json(silent=True) or {}
@@ -992,6 +997,7 @@ def add_ledger_entry(sid):
 
 
 @app.route("/api/suppliers/<sid>/ledger/<eid>", methods=["PUT"])
+@require_permission("supplier_edit")
 def update_ledger_entry(sid, eid):
     """Edit narration, notes, bank_ref of an existing entry (amounts locked)."""
     req = request.get_json(silent=True) or {}
@@ -1021,6 +1027,7 @@ def update_ledger_entry(sid, eid):
 
 
 @app.route("/api/suppliers/<sid>/ledger/<eid>", methods=["DELETE"])
+@require_permission("supplier_delete")
 def delete_ledger_entry(sid, eid):
     """Soft-delete a ledger entry (data preserved in DB)."""
     with get_db() as conn:
@@ -1041,6 +1048,7 @@ def delete_ledger_entry(sid, eid):
 # ── BATCH PROCESSING ENDPOINTS ───────────────────────────────────────────────
 
 @app.route("/api/suppliers/batch/upload", methods=["POST"])
+@require_permission("supplier_edit")
 def batch_upload_supplier_ledger():
     """Batch upload ledger entries from CSV file.
     
@@ -1131,6 +1139,7 @@ def batch_upload_supplier_ledger():
 
 
 @app.route("/api/customers/batch/upload", methods=["POST"])
+@require_permission("customer_edit")
 def batch_upload_customer_ledger():
     """Batch upload customer ledger entries from CSV file.
     
@@ -1633,6 +1642,7 @@ def get_items():
 
 
 @app.route("/api/items", methods=["POST"])
+@require_permission("po_edit")
 def add_item():
     """Create new item"""
     req = request.get_json(silent=True)
@@ -1672,6 +1682,7 @@ def add_item():
 
 
 @app.route("/api/items/<iid>", methods=["PUT"])
+@require_permission("po_edit")
 def update_item(iid):
     """Update item"""
     req = request.get_json(silent=True)
@@ -1712,6 +1723,7 @@ def update_item(iid):
 
 
 @app.route("/api/items/<iid>", methods=["DELETE"])
+@require_permission("po_delete")
 def delete_item(iid):
     """Delete item (check for usage in POs and Quotations)"""
     with get_db() as conn:
@@ -1794,6 +1806,7 @@ def get_forwarders():
 
 
 @app.route("/api/forwarders", methods=["POST"])
+@require_permission("forwarder_edit")
 def add_forwarder():
     """Create new forwarder"""
     req = request.get_json(silent=True)
@@ -1844,6 +1857,7 @@ def add_forwarder():
 
 
 @app.route("/api/forwarders/<fid>", methods=["PUT"])
+@require_permission("forwarder_edit")
 def update_forwarder(fid):
     """Update forwarder"""
     req = request.get_json(silent=True)
@@ -1899,6 +1913,7 @@ def update_forwarder(fid):
 
 
 @app.route("/api/forwarders/<fid>", methods=["DELETE"])
+@require_permission("forwarder_delete")
 def delete_forwarder(fid):
     """Delete forwarder (check for usage in POs)"""
     with get_db() as conn:
@@ -1966,6 +1981,7 @@ def get_pos():
 
 
 @app.route("/api/po", methods=["POST"])
+@require_permission("po_edit")
 def create_po():
     """Create new purchase order"""
     req = request.get_json(silent=True)
@@ -2074,6 +2090,7 @@ def create_po():
 
 
 @app.route("/api/po/<pid>", methods=["PUT"])
+@require_permission("po_edit")
 def update_po(pid):
     """Update purchase order"""
     req = request.get_json(silent=True)
@@ -2196,6 +2213,7 @@ def update_po(pid):
 
 
 @app.route("/api/po/<pid>", methods=["DELETE"])
+@require_permission("po_delete")
 def delete_po(pid):
     """Soft-delete a purchase order (sets deleted_at; data is preserved).
 
@@ -2214,6 +2232,7 @@ def delete_po(pid):
 
 
 @app.route("/api/po/<pid>/restore", methods=["POST"])
+@require_permission("po_edit")
 def restore_po(pid):
     """Restore a soft-deleted purchase order"""
     with get_db() as conn:
@@ -2393,6 +2412,7 @@ def list_deleted_pos():
 
 
 @app.route("/api/po/<pid>/hard", methods=["DELETE"])
+@require_permission("po_delete")
 def hard_delete_po(pid):
     """Permanently delete a PO and all its attachments / payment files.
 
@@ -2429,6 +2449,7 @@ def get_settings():
 
 
 @app.route("/api/settings", methods=["POST"])
+@require_permission("admin_rbac")
 def save_settings():
     """Update settings"""
     req = request.get_json(silent=True)
@@ -2633,6 +2654,7 @@ def export_data():
 
 
 @app.route("/api/import", methods=["POST"])
+@require_permission("admin_rbac")
 def import_data():
     """
     📥 IMPORT ENDPOINT WITH TRANSACTION & ROLLBACK
@@ -3051,6 +3073,7 @@ def import_data():
 
 
 @app.route("/api/reset", methods=["POST"])
+@require_permission("admin_rbac")
 def reset_data():
     """Wipe all app data and restore default settings."""
     with get_db() as conn:
@@ -3203,6 +3226,7 @@ def list_quotations():
 
 
 @app.route("/api/quotations", methods=["POST"])
+@require_permission("po_edit")
 def create_quotation():
     """Create a new quotation"""
     data = request.get_json(force=True)
@@ -3244,6 +3268,7 @@ def get_quotation(qid):
 
 
 @app.route("/api/quotations/<qid>", methods=["PUT"])
+@require_permission("po_edit")
 def update_quotation(qid):
     """Update an existing quotation"""
     data = request.get_json(force=True)
@@ -3282,6 +3307,7 @@ def update_quotation(qid):
 
 
 @app.route("/api/quotations/<qid>", methods=["DELETE"])
+@require_permission("po_delete")
 def delete_quotation(qid):
     """Delete a quotation"""
     with get_db() as conn:
@@ -3291,6 +3317,7 @@ def delete_quotation(qid):
 
 
 @app.route("/api/quotations/<qid>/award", methods=["POST"])
+@require_permission("po_edit")
 def award_quotation(qid):
     """Award a quotation to a supplier"""
     data = request.get_json(force=True)
@@ -3333,6 +3360,7 @@ def award_quotation(qid):
 
 
 @app.route("/api/quotations/<qid>/reopen", methods=["POST"])
+@require_permission("po_edit")
 def reopen_quotation(qid):
     """Reopen an awarded quotation"""
     now = datetime.now().isoformat()
@@ -3360,6 +3388,7 @@ def reopen_quotation(qid):
 
 
 @app.route("/api/quotations/<qid>/duplicate", methods=["POST"])
+@require_permission("po_edit")
 def duplicate_quotation(qid):
     """Duplicate a quotation with cleared prices"""
     now = datetime.now().isoformat()
@@ -4335,6 +4364,7 @@ def _build_lc_html(po, settings, currency, c, rate, bank, ship, duty, trans, gst
     return html
 
 @app.route("/api/lc-report/<pid>", methods=["POST"])
+@require_permission("po_edit")
 def lc_report(pid):
     """Generate landed cost report"""
     with get_db() as conn:
@@ -4383,6 +4413,7 @@ def lc_report(pid):
 
 
 @app.route("/api/lc-report/<pid>/pdf", methods=["POST"])
+@require_permission("po_edit")
 def lc_report_pdf(pid):
     """Generate and download landed cost report as PDF (A4 Portrait)"""
     with get_db() as conn:
@@ -4500,6 +4531,7 @@ def list_attachments(pid):
 
 
 @app.route("/api/po/<pid>/attachments", methods=["POST"])
+@require_permission("po_edit")
 def upload_attachment(pid):
     """Upload a file attachment to a PO"""
     if "file" not in request.files:
@@ -4565,6 +4597,7 @@ def download_attachment(pid, aid):
 
 
 @app.route("/api/po/<pid>/attachments/<aid>", methods=["DELETE"])
+@require_permission("po_delete")
 def delete_attachment(pid, aid):
     """Delete an attachment"""
     with get_db() as conn:
@@ -4591,6 +4624,7 @@ def delete_attachment(pid, aid):
 
 
 @app.route("/api/po/<pid>/attachments/<aid>/rename", methods=["POST"])
+@require_permission("po_edit")
 def rename_attachment(pid, aid):
     """Rename an attachment label"""
     req = request.get_json(silent=True) or {}
@@ -4677,6 +4711,7 @@ def get_payment_status(pid):
 
 
 @app.route("/api/po/<pid>/payment", methods=["POST"])
+@require_permission("po_edit")
 def upload_payment_proof(pid):
     """Upload payment proof PDF"""
     with get_db() as conn:
@@ -4722,6 +4757,7 @@ def upload_payment_proof(pid):
 
 
 @app.route("/api/po/<pid>/payment/confirm", methods=["POST"])
+@require_permission("po_edit")
 def confirm_payment_proof(pid):
     """Confirm and lock payment proof (permanent)"""
     with get_db() as conn:
@@ -4773,6 +4809,7 @@ def download_payment_proof(pid):
     return send_file(fp, download_name=row["filename"], mimetype="application/pdf")
 
 @app.route("/api/scan-invoice", methods=["POST"])
+@require_permission("po_edit")
 def scan_invoice():
     """
     AI INVOICE SCANNER
@@ -5174,6 +5211,7 @@ def get_shipments():
 # ── POST /api/shipments ───────────────────────────────────────────────────────
 
 @app.route("/api/shipments", methods=["POST"])
+@require_permission("forwarder_edit")
 def create_shipment():
     """Create a new shipment and optionally link POs."""
     req = request.get_json(silent=True)
@@ -5237,6 +5275,7 @@ def create_shipment():
 # ── PUT /api/shipments/<id> ───────────────────────────────────────────────────
 
 @app.route("/api/shipments/<sid>", methods=["PUT"])
+@require_permission("forwarder_edit")
 def update_shipment(sid):
     """Update shipment fields."""
     req = request.get_json(silent=True)
@@ -5341,6 +5380,7 @@ def update_shipment(sid):
 # ── DELETE /api/shipments/<id> ────────────────────────────────────────────────
 
 @app.route("/api/shipments/<sid>", methods=["DELETE"])
+@require_permission("forwarder_delete")
 def delete_shipment(sid):
     """Soft-delete a shipment."""
     with get_db() as conn:
@@ -5357,6 +5397,7 @@ def delete_shipment(sid):
 # ── POST /api/shipments/<id>/notes ────────────────────────────────────────────
 
 @app.route("/api/shipments/<sid>/notes", methods=["POST"])
+@require_permission("forwarder_edit")
 def add_shipment_note(sid):
     """Append a timestamped note to the shipment's JSON notes log."""
     req = request.get_json(silent=True)
@@ -5393,6 +5434,7 @@ def add_shipment_note(sid):
 # ── POST /api/shipments/<id>/link-po ─────────────────────────────────────────
 
 @app.route("/api/shipments/<sid>/link-po", methods=["POST"])
+@require_permission("forwarder_edit")
 def link_po(sid):
     """Link a purchase order to a shipment."""
     req = request.get_json(silent=True)
@@ -5426,6 +5468,7 @@ def link_po(sid):
 # ── POST /api/shipments/<id>/unlink-po ───────────────────────────────────────
 
 @app.route("/api/shipments/<sid>/unlink-po", methods=["POST"])
+@require_permission("forwarder_edit")
 def unlink_po(sid):
     """Remove a PO link from a shipment."""
     req = request.get_json(silent=True)
@@ -5562,6 +5605,7 @@ def get_customers():
 
 
 @app.route("/api/customers", methods=["POST"])
+@require_permission("customer_edit")
 def add_customer():
     """Create new customer"""
     req = request.get_json(silent=True) or {}
@@ -5620,6 +5664,7 @@ def add_customer():
 
 
 @app.route("/api/customers/<cid>", methods=["PUT"])
+@require_permission("customer_edit")
 def update_customer(cid):
     """Update customer"""
     req = request.get_json(silent=True) or {}
@@ -5663,6 +5708,7 @@ def update_customer(cid):
 
 
 @app.route("/api/customers/<cid>", methods=["DELETE"])
+@require_permission("customer_delete")
 def delete_customer(cid):
     """Soft-delete customer."""
     with get_db() as conn:
@@ -5729,6 +5775,7 @@ def get_customer_ledger(cid):
     })
 
 @app.route("/api/customers/<cid>/ledger", methods=["POST"])
+@require_permission("customer_edit")
 def add_customer_ledger_entry(cid):
     """Add new customer ledger entry (voucher)."""
     req = request.get_json(silent=True) or {}
@@ -5806,6 +5853,7 @@ def is_older_than_7_days(created_str):
         return False
 
 @app.route("/api/ledger/customer/<eid>", methods=["PUT"])
+@require_permission("customer_edit")
 def update_customer_ledger_entry(eid):
     """Edit customer ledger entry. Locked if older than 7 days."""
     req = request.get_json(silent=True) or {}
@@ -5875,6 +5923,7 @@ def update_customer_ledger_entry(eid):
     return jsonify(updated)
 
 @app.route("/api/ledger/customer/<eid>", methods=["DELETE"])
+@require_permission("customer_delete")
 def delete_customer_ledger_entry(eid):
     """Soft-delete a customer ledger entry."""
     with get_db() as conn:
@@ -5889,6 +5938,7 @@ def delete_customer_ledger_entry(eid):
 
 
 @app.route("/api/ledger/supplier/<eid>", methods=["PUT"])
+@require_permission("supplier_edit")
 def update_supplier_ledger_entry_v2(eid):
     """Edit supplier ledger entry. Locked if older than 7 days."""
     req = request.get_json(silent=True) or {}
@@ -5956,6 +6006,7 @@ def update_supplier_ledger_entry_v2(eid):
     return jsonify(updated)
 
 @app.route("/api/ledger/supplier/<eid>", methods=["DELETE"])
+@require_permission("supplier_delete")
 def delete_supplier_ledger_entry_v2(eid):
     """Soft-delete supplier ledger entry."""
     with get_db() as conn:

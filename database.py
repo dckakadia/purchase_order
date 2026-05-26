@@ -632,10 +632,18 @@ def init_default_rbac(conn):
 
     # 1. Define default permissions
     perms = [
-        ("po_dashboard", "Purchase Orders Dashboard"),
-        ("supplier_books", "Supplier Books"),
-        ("customer_books", "Customer Books"),
-        ("forwarder_dashboard", "Forwarder Dashboard"),
+        ("po_dashboard", "Purchase Orders Dashboard (View)"),
+        ("po_edit", "Purchase Orders Dashboard (Edit)"),
+        ("po_delete", "Purchase Orders Dashboard (Delete)"),
+        ("supplier_books", "Supplier Books (View)"),
+        ("supplier_edit", "Supplier Books (Edit)"),
+        ("supplier_delete", "Supplier Books (Delete)"),
+        ("customer_books", "Customer Books (View)"),
+        ("customer_edit", "Customer Books (Edit)"),
+        ("customer_delete", "Customer Books (Delete)"),
+        ("forwarder_dashboard", "Forwarder Dashboard (View)"),
+        ("forwarder_edit", "Forwarder Dashboard (Edit)"),
+        ("forwarder_delete", "Forwarder Dashboard (Delete)"),
         ("admin_rbac", "Admin Panel (Users & Roles)"),
     ]
     
@@ -644,6 +652,7 @@ def init_default_rbac(conn):
             "INSERT OR IGNORE INTO permissions (id, name, page_identifier) VALUES (?, ?, ?)",
             (str(uuid.uuid4()), name, page_id)
         )
+        cursor.execute("UPDATE permissions SET name = ? WHERE page_identifier = ?", (name, page_id))
 
     # 2. Define Admin Role
     cursor.execute("SELECT id FROM roles WHERE name = 'Admin'")

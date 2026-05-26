@@ -333,7 +333,15 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
 .sb-overlay-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;display:none}
 .sb-overlay-bg.open{display:block}
 </style>
-</head>
+
+    {% if 'po_edit' not in user_permissions %}
+    <style> .req-edit { display: none !important; pointer-events: none !important; } </style>
+    {% endif %}
+    {% if 'po_delete' not in user_permissions %}
+    <style> .req-delete { display: none !important; pointer-events: none !important; } </style>
+    {% endif %}
+    </head>
+
 <body>
 <div class="layout">
 
@@ -481,7 +489,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
       <div class="page-title">Purchase <span>Orders</span></div>
       <div class="page-sub">Create, manage and print POs for China suppliers</div>
     </div>
-    <button class="btn btn-primary" onclick="openPOModal()">+ New Purchase Order</button>
+    <button class="req-edit btn btn-primary" onclick="openPOModal()">+ New Purchase Order</button>
   </div>
   <div class="stats-bar">
     <div class="stat-card blue" id="sc-total" onclick="setPOFilter('all')" style="cursor:pointer" title="Show all POs"><div class="stat-val" id="po-count-total">—</div><div class="stat-label">Total</div></div>
@@ -518,7 +526,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
       <div>
         <div class="page-title" style="font-size:18px">Company <span>Settings</span></div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="showTab('settings', document.querySelector('.sb-item[onclick*=\'masters\']'))">Edit Settings →</button>
+      <button class="req-edit btn btn-primary btn-sm" onclick="showTab('settings', document.querySelector('.sb-item[onclick*=\'masters\']'))">Edit Settings →</button>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
       <div class="form-section">
@@ -546,7 +554,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
       <div>
         <div class="page-title" style="font-size:18px">Supplier <span>Master</span></div>
       </div>
-      <button class="btn btn-green" onclick="openSupplierModal()">+ Add Supplier</button>
+      <button class="req-edit btn btn-green" onclick="openSupplierModal()">+ Add Supplier</button>
     </div>
     <div class="table-wrap">
       <div class="table-header">
@@ -572,7 +580,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
       <div>
         <div class="page-title" style="font-size:18px">Customer <span>Master</span></div>
       </div>
-      <button class="btn btn-primary" onclick="openCustomerModal()">+ Add Customer</button>
+      <button class="req-edit btn btn-primary" onclick="openCustomerModal()">+ Add Customer</button>
     </div>
     <div class="table-wrap">
       <div class="table-header">
@@ -602,7 +610,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
       <div>
         <div class="page-title" style="font-size:18px">Item <span>Master</span></div>
       </div>
-      <button class="btn btn-primary" onclick="openItemModal()">+ Add Item</button>
+      <button class="req-edit btn btn-primary" onclick="openItemModal()">+ Add Item</button>
     </div>
     <div class="table-wrap">
       <table>
@@ -626,7 +634,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
       <div>
         <div class="page-title" style="font-size:18px">Forwarder <span>Master</span></div>
       </div>
-      <button class="btn btn-primary" onclick="openForwarderModal()">+ Add Forwarder</button>
+      <button class="req-edit btn btn-primary" onclick="openForwarderModal()">+ Add Forwarder</button>
     </div>
     <div class="table-wrap">
       <div class="table-header">
@@ -691,7 +699,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
       </div>
     </div>
     <div style="margin-top:16px">
-      <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+      <button class="req-edit btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
     </div>
   </div>
 </div>
@@ -703,7 +711,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
       <div class="page-title">Quotation <span>Analyzer</span></div>
       <div class="page-sub">Compare supplier quotes &middot; Auto-score &middot; Create PO instantly</div>
     </div>
-    <button class="btn btn-primary" onclick="openQuotationModal()">+ New Quotation</button>
+    <button class="req-edit btn btn-primary" onclick="openQuotationModal()">+ New Quotation</button>
   </div>
   <div class="stats-bar" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
     <div class="stat-card blue"><div class="stat-val" id="qa-count-total">&#8212;</div><div class="stat-label">Total Quotations</div></div>
@@ -904,7 +912,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
       <div class="page-title">Supplier <span>Books</span></div>
       <div class="page-sub">Tally-style payables ledger &middot; Ageing &middot; Account Statements</div>
     </div>
-    <button class="btn btn-primary" onclick="sbOpenEntry(null)">+ Add Entry</button>
+    <button class="req-edit btn btn-primary" onclick="sbOpenEntry(null)">+ Add Entry</button>
   </div>
 
   <!-- KPI Cards -->
@@ -1022,7 +1030,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('supplierOverlay')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveSupplier()">Save Supplier</button>
+      <button class="req-edit btn btn-primary" onclick="saveSupplier()">Save Supplier</button>
     </div>
   </div>
 </div>
@@ -1048,7 +1056,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('customerOverlay')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveCustomer()">Save Customer</button>
+      <button class="req-edit btn btn-primary" onclick="saveCustomer()">Save Customer</button>
     </div>
   </div>
 </div>
@@ -1079,7 +1087,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('itemOverlay')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveItem()">Save Item</button>
+      <button class="req-edit btn btn-primary" onclick="saveItem()">Save Item</button>
     </div>
   </div>
 </div>
@@ -1097,13 +1105,13 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
     <div style="margin-top:14px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">📍 Godown Addresses</span>
-        <button class="btn btn-ghost btn-sm" onclick="addGodownRow()">+ Add Godown</button>
+        <button class="req-edit btn btn-ghost btn-sm" onclick="addGodownRow()">+ Add Godown</button>
       </div>
       <div id="godownRows"></div>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:12px;border-top:1px solid var(--border);margin-top:12px">
       <button class="btn btn-ghost" onclick="closeModal('forwarderOverlay')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveForwarder()">Save Forwarder</button>
+      <button class="req-edit btn btn-primary" onclick="saveForwarder()">Save Forwarder</button>
     </div>
   </div>
 </div>
@@ -1215,7 +1223,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
         <tbody id="poLineItems"></tbody>
       </table>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
-        <button class="btn btn-ghost btn-sm" onclick="addPOLineItem()">+ Add Item</button>
+        <button class="req-edit btn btn-ghost btn-sm" onclick="addPOLineItem()">+ Add Item</button>
         <div class="li-total" style="display:flex; gap:20px; align-items:center;">
           <div style="font-size:11px; color:var(--text2); font-weight:700;">TOTAL QTY REQUIRED: <span id="poLineTotalQty" style="color:var(--accent); font-weight:900; font-size:13px;">—</span></div>
           <div>Total: <span id="poLineTotal">—</span></div>
@@ -1258,7 +1266,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
 
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('poOverlay')">Cancel</button>
-      <button class="btn btn-primary" onclick="savePO()">💾 Save Purchase Order</button>
+      <button class="req-edit btn btn-primary" onclick="savePO()">💾 Save Purchase Order</button>
     </div>
   </div>
 </div>
@@ -1458,7 +1466,7 @@ function renderPOs(){
           </div>
         </div>
         <div class="po-actions">
-          <button class="btn btn-ghost btn-sm" onclick="editPO('${p.id}')">✏ Edit</button>
+          <button class="req-edit btn btn-ghost btn-sm" onclick="editPO('${p.id}')">✏ Edit</button>
           <button class="btn btn-ghost btn-sm" onclick="printPOReport('${p.id}')" title="Purchase Order for Supplier">🖨 PO Report</button>
           <button class="btn btn-sm" style="background:rgba(249,115,22,.15);color:var(--orange);border:1px solid rgba(249,115,22,.3)" onclick="openLCParams('${p.id}')" title="Internal Landed Cost Report">📊 Cost Report</button>
           <button class="btn btn-ghost btn-sm" style="color:var(--accent3);border-color:rgba(167,139,250,.35)" onclick="openAttachments('${p.id}')" title="Documents & Attachments">📎 Docs${p.attach_count ? ` <span style="background:var(--accent3);color:#0e0022;border-radius:99px;font-size:9px;padding:1px 6px;margin-left:3px;font-weight:800">${p.attach_count}</span>` : ''}</button>
@@ -1947,7 +1955,7 @@ function renderSuppliers(){
     <td>${esc(s.phone||'—')}<br><span style="font-size:10px;color:var(--text2)">WeChat: ${esc(s.wechat||'—')}</span></td>
     <td style="font-size:11px">${esc(s.bank_name||'—')}<br><span style="color:var(--text2)">${s.bank_account?'A/C: '+esc(s.bank_account):''}</span></td>
     <td><div style="display:flex;gap:6px">
-      <button class="btn btn-ghost btn-xs" onclick="openSupplierModal('${s.id}')">Edit</button>
+      <button class="req-edit btn btn-ghost btn-xs" onclick="openSupplierModal('${s.id}')">Edit</button>
       <button class="btn btn-xs" style="color:var(--red);border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08)" onclick="deleteSupplier('${s.id}')">✕</button>
     </div></td>
   </tr>`).join('');
@@ -2026,7 +2034,7 @@ function renderItems(){
     <td><span class="badge badge-blue">${ic}</span></td>
     <td style="color:var(--accent);font-weight:700">${sym}${Number(it.default_price_usd||0).toFixed(2)}</td>
     <td><div style="display:flex;gap:6px">
-      <button class="btn btn-ghost btn-xs" onclick="openItemModal('${it.id}')">Edit</button>
+      <button class="req-edit btn btn-ghost btn-xs" onclick="openItemModal('${it.id}')">Edit</button>
       <button class="btn btn-xs" style="color:var(--red);border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08)" onclick="deleteItem('${it.id}')">✕</button>
     </div></td>
   </tr>`;
@@ -2104,7 +2112,7 @@ function renderForwarders(){
         </div>`).join('') : '<span style="color:var(--text3);font-size:11px">No godowns</span>'}
     </td>
     <td><div style="display:flex;gap:6px">
-      <button class="btn btn-ghost btn-xs" onclick="openForwarderModal('${fw.id}')">Edit</button>
+      <button class="req-edit btn btn-ghost btn-xs" onclick="openForwarderModal('${fw.id}')">Edit</button>
       <button class="btn btn-xs" style="color:var(--red);border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08)" onclick="deleteForwarder('${fw.id}')">✕</button>
     </div></td>
   </tr>`).join('');
@@ -2319,7 +2327,7 @@ function renderCustomers(){
     <td style="text-align:right;color:var(--text2)">${c.credit_limit?fmtInr(c.credit_limit):'—'}</td>
     <td style="text-align:right;color:${(c.outstanding_balance||0)>=0?'var(--accent3)':'var(--accent)'}">${fmtInr(Math.abs(c.outstanding_balance||0))}</td>
     <td><div style="display:flex;gap:6px;justify-content:center">
-      <button class="btn btn-ghost btn-xs" onclick="openCustomerModal('${c.id}')">Edit</button>
+      <button class="req-edit btn btn-ghost btn-xs" onclick="openCustomerModal('${c.id}')">Edit</button>
       <button class="btn btn-xs" style="color:var(--red);border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08)" onclick="deleteCustomer('${c.id}')">✕</button>
     </div></td>
   </tr>`).join('');
@@ -2612,7 +2620,7 @@ function renderQACard(q) {
         ${isAwarded  ? `<button class="btn btn-ghost btn-sm" onclick="reopenQuotation('${q.id}')" title="Reset to Open for re-negotiation" style="color:var(--accent4);border-color:rgba(245,158,11,.4)">&#8635; Re-open</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="duplicateQuotation('${q.id}')" title="Clone with same items &amp; suppliers, blank prices" style="color:var(--accent3);border-color:rgba(167,139,250,.35)">&#10697; Duplicate</button>
         <button class="btn btn-ghost btn-sm" onclick="printQuotationCard('${q.id}')" title="Print / Save as PDF" style="color:var(--cyan);border-color:rgba(6,182,212,.3)">&#128438; Print PDF</button>
-        <button class="btn btn-ghost btn-sm" onclick="editQuotation('${q.id}')">&#9998; Edit</button>
+        <button class="req-edit btn btn-ghost btn-sm" onclick="editQuotation('${q.id}')">&#9998; Edit</button>
         <button class="btn btn-ghost btn-sm" onclick="toggleQADetail('${q.id}',this)" style="color:var(--cyan);border-color:rgba(6,182,212,.3)">&#9660; Details</button>
         <button class="btn btn-red btn-sm" onclick="deleteQuotation('${q.id}')">&#128465;</button>
       </div>
@@ -4966,7 +4974,7 @@ table.qs-grid .qs-savings-row td.td-savings-sup{text-align:right}
     <button class="btn btn-ghost btn-sm" onclick="qsPrintPDF()" title="Print A4 Landscape comparison sheet" style="color:var(--cyan);border-color:rgba(6,182,212,.4)">&#128438; Print PDF</button>
     <button class="btn btn-ghost btn-sm" onclick="qsExportExcel()" title="Export to Excel (.xlsx)" style="color:#16a34a;border-color:rgba(22,163,74,.35)">&#128202; Export Excel</button>
     <button class="btn btn-ghost btn-sm" onclick="qsClose()">&#x2715; Close</button>
-    <button class="btn btn-primary btn-sm" onclick="qsSave()">&#128190; Save Quotation</button>
+    <button class="req-edit btn btn-primary btn-sm" onclick="qsSave()">&#128190; Save Quotation</button>
   </div>
 
   <!-- HEADER FIELDS -->
@@ -5010,7 +5018,7 @@ table.qs-grid .qs-savings-row td.td-savings-sup{text-align:right}
     <span class="qs-supbar-label">Suppliers:</span>
     <div id="qsSupPills" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"></div>
     <div style="display:flex;gap:6px">
-      <button class="btn btn-ghost btn-xs" onclick="qsOpenAddSup()">+ Add Supplier</button>
+      <button class="req-edit btn btn-ghost btn-xs" onclick="qsOpenAddSup()">+ Add Supplier</button>
       <button class="btn btn-xs" style="background:rgba(167,139,250,.15);color:var(--accent3);border:1px solid rgba(167,139,250,.3)" onclick="openQSScan()">🔍 AI Scan Supplier Quote</button>
     </div>
   </div>
@@ -5039,7 +5047,7 @@ table.qs-grid .qs-savings-row td.td-savings-sup{text-align:right}
 
   <!-- BOTTOM BAR -->
   <div class="qs-bottombar">
-    <button class="btn btn-ghost btn-sm" onclick="qsAddRows(1)">+ Add Row</button>
+    <button class="req-edit btn btn-ghost btn-sm" onclick="qsAddRows(1)">+ Add Row</button>
     <button class="btn btn-ghost btn-sm" onclick="qsAddRows(5)">+ 5 Rows</button>
     <div class="qs-bottombar-hints">
       <kbd>Tab</kbd>/<kbd>Enter</kbd> = next cell &nbsp;·&nbsp;
@@ -5048,7 +5056,7 @@ table.qs-grid .qs-savings-row td.td-savings-sup{text-align:right}
       <kbd>Del</kbd> = clear
     </div>
     <button class="btn btn-green btn-sm" onclick="qsGeneratePO()">&#129302; Generate PO from Best Prices</button>
-    <button class="btn btn-primary btn-sm" onclick="qsSave()">&#128190; Save</button>
+    <button class="req-edit btn btn-primary btn-sm" onclick="qsSave()">&#128190; Save</button>
   </div>
 </div>
 
@@ -5246,7 +5254,7 @@ table.qs-grid .qs-savings-row td.td-savings-sup{text-align:right}
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" id="sysPromptCancel">Cancel</button>
-      <button class="btn btn-accent" id="sysPromptOk">Save</button>
+      <button class="req-edit btn btn-accent" id="sysPromptOk">Save</button>
     </div>
   </div>
 </div>
@@ -5263,7 +5271,7 @@ table.qs-grid .qs-savings-row td.td-savings-sup{text-align:right}
       <div style="font-size:11px;color:var(--text2);margin-top:2px" id="sbLedgerBalance">Closing Balance: —</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn btn-primary btn-sm" onclick="sbOpenEntry(window._sbCurrentSid)">+ Add Entry</button>
+      <button class="req-edit btn btn-primary btn-sm" onclick="sbOpenEntry(window._sbCurrentSid)">+ Add Entry</button>
       <a id="sbStmtPdfBtn" href="#" target="_blank" class="btn btn-ghost btn-sm">📄 Statement PDF</a>
       <button class="sb-ledger-close" onclick="sbCloseLedger()">✕</button>
     </div>
@@ -5372,7 +5380,7 @@ table.qs-grid .qs-savings-row td.td-savings-sup{text-align:right}
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('sbEntryOverlay')">Cancel</button>
-      <button class="btn btn-primary" onclick="sbSaveEntry()">Save Entry</button>
+      <button class="req-edit btn btn-primary" onclick="sbSaveEntry()">Save Entry</button>
     </div>
   </div>
 </div>

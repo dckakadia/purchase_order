@@ -27,7 +27,15 @@
 /* Book Sidebar Specific */
 .sb-nav .active { background: linear-gradient(90deg, rgba(255, 51, 102, 0.15) 0%, transparent 100%); border-left-color: var(--red); color: #fff; text-shadow: 0 0 10px rgba(255, 51, 102, 0.5); }
 </style>
-</head>
+
+    {% if 'supplier_edit' not in user_permissions %}
+    <style> .req-edit { display: none !important; pointer-events: none !important; } </style>
+    {% endif %}
+    {% if 'supplier_delete' not in user_permissions %}
+    <style> .req-delete { display: none !important; pointer-events: none !important; } </style>
+    {% endif %}
+    </head>
+
 <body>
 
 <div class="layout">
@@ -164,7 +172,7 @@
         <select id="ledger-supplier-select" class="form-control" style="width:250px" onchange="loadLedger()">
           <option value="">Select Supplier...</option>
         </select>
-        <button class="btn btn-primary" onclick="openVoucherModal()" id="btn-add-voucher" style="display:none">+ Add Voucher</button>
+        <button class="req-edit btn btn-primary" onclick="openVoucherModal()" id="btn-add-voucher" style="display:none">+ Add Voucher</button>
         <button class="btn btn-ghost" onclick="downloadLedgerPDF()" id="btn-pdf" style="display:none">PDF</button>
       </div>
     </div>
@@ -281,7 +289,7 @@
         </div>
         <div style="text-align:right; margin-top:15px">
           <button type="button" class="btn btn-ghost" onclick="closeModal('voucherModal')">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Voucher</button>
+          <button type="submit" class="req-edit btn btn-primary">Save Voucher</button>
         </div>
       </form>
     </div>
@@ -456,7 +464,7 @@ async function loadLedger() {
         
         let actions = '';
         if(e.entry_type !== 'OPENING') {
-            actions = `<button class="btn btn-ghost btn-sm" onclick="editVoucher('${e.id}')">Edit</button>
+            actions = `<button class="req-edit btn btn-ghost btn-sm" onclick="editVoucher('${e.id}')">Edit</button>
                        <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteVoucher('${e.id}')">Del</button>`;
         }
         
