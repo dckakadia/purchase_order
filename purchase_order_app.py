@@ -1,5 +1,5 @@
 """
-Import Portal — Unified Flask App (SQLite Version)
+Purchase Order — Unified Flask App (SQLite Version)
 Replaces JSON storage with SQLite for performance & safety
 Port: 5005
 """
@@ -1366,7 +1366,7 @@ def supplier_ledger_pdf(sid):
   @media print{{@page{{margin:10mm;size:A4}}body{{padding:0}}}}
 </style></head><body>
 <div class="hdr">
-  <div><div class="co-name">{_e(company_name or 'Import Portal')}</div>
+  <div><div class="co-name">{_e(company_name or 'Purchase Order')}</div>
   <div class="co-sub">Account Statement</div></div>
   <div><div class="stmt-title">SUPPLIER ACCOUNT STATEMENT</div>
   <div class="stmt-meta">As of {date.today().strftime('%d %b %Y')}</div></div>
@@ -6481,7 +6481,7 @@ def customer_ledger_pdf(cid):
   @media print{{@page{{margin:10mm;size:A4}}body{{padding:0}}}}
 </style></head><body>
 <div class="hdr">
-  <div><div class="co-name">{_e(company_name or 'Import Portal')}</div>
+  <div><div class="co-name">{_e(company_name or 'Purchase Order')}</div>
   <div class="co-sub">Account Statement</div></div>
   <div><div class="stmt-title">CUSTOMER ACCOUNT STATEMENT</div>
   <div class="stmt-meta">As of {date.today().strftime('%d %b %Y')}</div></div>

@@ -1,4 +1,4 @@
-# Import Portal — Greenwave Traders
+# Purchase Order — Greenwave Traders
 
 A unified, single-page application dashboard for managing Purchase Orders, Supplier/Customer Ledgers, Forwarder logistics, and Quotation analytics. Built with Python (Flask) and a local SQLite database for speed and portability.
 
@@ -79,7 +79,7 @@ pm2 logs purchase_order
 ## File Structure
 
 ```
-import-tools-portal/
+purchase_order/
 ├── purchase_order_app.py       # Main Flask application and API routes
 ├── database.py                 # SQLite schema definitions and initializers
 ├── ecosystem.config.js         # PM2 configuration for background execution
