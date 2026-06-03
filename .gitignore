@@ -18,3 +18,7 @@ output/
 *.log
 data/
 *.bak*
+
+# Rclone binary (large file — download separately from https://rclone.org/downloads/)
+rclone.exe
+rclone
