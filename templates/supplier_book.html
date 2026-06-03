@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Supplier Books — Purchase Order</title>
+<style>
+{% include 'shared_styles.css' %}
+
+/* Additional specific styles for accounting books */
+.voucher-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
+.voucher-form-grid.full { grid-template-columns: 1fr; }
+.bal-dr { color: var(--accent); font-weight: 700; }
+.bal-cr { color: var(--red); font-weight: 700; }
+.badge-dr { background: rgba(0, 240, 255, 0.1); color: var(--accent); border: 1px solid rgba(0,240,255,0.2); }
+.badge-cr { background: rgba(255, 51, 102, 0.1); color: var(--red); border: 1px solid rgba(255,51,102,0.2); }
+
+.ageing-cell { font-size: 11px; text-align: right; }
+.ageing-cell.danger { color: var(--red); font-weight: 700; }
+.ageing-cell.warn { color: #f59e0b; font-weight: 600; }
+
+/* Ledger Table Colors */
+.row-INVOICE { background: rgba(255,255,255,0.02); }
+.row-PAYMENT { background: rgba(0,255,100,0.05); }
+.row-ADJUSTMENT { background: rgba(200,200,200,0.02); }
+
+/* Book Sidebar Specific */
+.sb-nav .active { background: linear-gradient(90deg, rgba(255, 51, 102, 0.15) 0%, transparent 100%); border-left-color: var(--red); color: #fff; text-shadow: 0 0 10px rgba(255, 51, 102, 0.5); }
+</style>
+
+    {% if 'supplier_edit' not in user_permissions %}
+    <style> .req-edit { display: none !important; pointer-events: none !important; } </style>
+    {% endif %}
+    {% if 'supplier_delete' not in user_permissions %}
+    <style> .req-delete { display: none !important; pointer-events: none !important; } </style>
+    {% endif %}
+    </head>
+
+<body>
+
+<div class="layout">
+<aside class="sidebar">
+  <div class="sb-header">
+    <div class="sb-logo">
+      <div class="sb-logo-icon">🌊</div>
+      <div>
+        <div class="sb-company">Purchase Order</div>
+        <div class="sb-tagline">Greenwave Traders</div>
+      </div>
+    </div>
+    <div class="sb-badge">v2.0 — UNIFIED</div>
+  </div>
+
+  <nav class="sb-nav">
+    <div class="sb-item" onclick="window.location.href='/?tab=dashboard'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 13h1v2H0v-2zm2-4h1v6H2V9zm2-4h1v10H4V5zm2-3h1v13H6V2zm2 5h1v8H8V7zm2 4h1v4h-1v-4zm2-2h1v6h-1V9z"/></svg>
+      Dashboard
+    </div>
+
+    {% if 'po_dashboard' in user_permissions %}
+    <div class="sb-group" style="margin-top: 15px;">TRANSACTIONS</div>
+    <div class="sb-item" onclick="window.location.href='/?tab=quotations'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h14v2L9 7v7l-2-1-2 1V7L1 3zm12 1.5H3l4 2.8v6.4l1 .5 1-.5V5.3z"/></svg>
+      Quotations
+    </div>
+    <div class="sb-item" onclick="window.location.href='/?tab=pos'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+      Purchase Orders
+    </div>
+    {% endif %}
+    {% if 'customer_books' in user_permissions %}
+    <div class="sb-item" onclick="window.location.href='/sales-invoice'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h14v2L9 7v7l-2-1-2 1V7L1 3zm12 1.5H3l4 2.8v6.4l1 .5 1-.5V5.3z"/></svg>
+      Sales Invoices
+    </div>
+    {% endif %}
+
+    {% if 'forwarder_dashboard' in user_permissions %}
+    <div class="sb-group" style="margin-top: 15px;">LOGISTICS</div>
+    <div class="sb-item" onclick="window.location.href='/forwarder-dashboard'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+      Shipment Tracking
+    </div>
+    {% endif %}
+
+    {% if 'supplier_books' in user_permissions or 'customer_books' in user_permissions %}
+    <div class="sb-group" style="margin-top: 15px;">ACCOUNTING</div>
+    {% endif %}
+    {% if 'customer_books' in user_permissions %}
+    <div class="sb-item" onclick="window.location.href='/customer-book'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h7A1.5 1.5 0 0 1 11 2.5v3.5h.5a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H4.5A1.5 1.5 0 0 1 3 13.5V10H2.5A1.5 1.5 0 0 1 1 8.5v-6zM3.5 10v3a.5.5 0 0 0 .5.5h6.5V7.5H4.5a.5.5 0 0 0-.5.5v2H3.5zM11 7V2.5a.5.5 0 0 0-.5-.5h-7a.5.5 0 0 0-.5.5V8.5a.5.5 0 0 0 .5.5H5V7h6z"/></svg>
+      Customer Books
+    </div>
+    <div class="sb-item" style="padding-left: 36px" onclick="window.location.href='/customer-book?tab=outstanding'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+      Outstanding Ageing
+    </div>
+    {% endif %}
+
+    {% if 'supplier_books' in user_permissions %}
+    <div class="sb-item active" onclick="window.location.href='/supplier-book'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h7A1.5 1.5 0 0 1 11 2.5v3.5h.5a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H4.5A1.5 1.5 0 0 1 3 13.5V10H2.5A1.5 1.5 0 0 1 1 8.5v-6zM3.5 10v3a.5.5 0 0 0 .5.5h6.5V7.5H4.5a.5.5 0 0 0-.5.5v2H3.5zM11 7V2.5a.5.5 0 0 0-.5-.5h-7a.5.5 0 0 0-.5.5V8.5a.5.5 0 0 0 .5.5H5V7h6z"/></svg>
+      Supplier Books
+    </div>
+    <div class="sb-item" style="padding-left: 36px" onclick="showTab('outstanding', this)">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+      Outstanding Ageing
+    </div>
+    {% endif %}
+
+    {% if 'po_dashboard' in user_permissions %}
+    <div class="sb-group" style="margin-top: 15px;">MASTERS</div>
+    <div class="sb-item" onclick="window.location.href='/?tab=masters'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 6a5 5 0 0110 0H3z"/></svg>
+      All Masters
+    </div>
+    {% endif %}
+
+    {% if 'admin_rbac' in user_permissions %}
+    <div class="sb-group" style="margin-top: 15px;">SYSTEM</div>
+    <div class="sb-item" onclick="window.location.href='/admin/rbac'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zm0 14A6 6 0 118 2a6 6 0 010 12zM6.5 5h3v2h-3V5zm0 4h3v2h-3V9z"/></svg>
+      Admin Panel
+    </div>
+    {% endif %}
+  </nav>
+
+  <div class="sb-footer">
+    <div style="font-size:11px;color:var(--text2);display:flex;justify-content:space-between;align-items:center;">
+      <span>👤 {{ current_user.username if current_user else 'Guest' }}</span>
+      <a href="/logout" style="color:var(--accent2);text-decoration:none;font-weight:bold;">Logout</a>
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+  <!-- DASHBOARD TAB (Hidden) -->
+  <div class="tabs" id="tab-dashboard" style="display: none;">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Payable <span>Dashboard</span></div>
+        <div class="page-sub">High-level overview of money owed to suppliers</div>
+      </div>
+      <button class="btn btn-ghost" onclick="loadDashboard()">↻ Refresh</button>
+    </div>
+    <div class="stats-bar" id="dash-stats">
+      <div class="stat-card red"><div class="stat-val">¥ 0</div><div class="stat-label">Total Payable</div></div>
+      <div class="stat-card purple"><div class="stat-val">0</div><div class="stat-label">Suppliers w/ Balance</div></div>
+      <div class="stat-card blue"><div class="stat-val">¥ 0</div><div class="stat-label">Overdue Amount</div></div>
+      <div class="stat-card yellow"><div class="stat-val">0</div><div class="stat-label">Avg Payment Days</div></div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header"><div class="table-title">Supplier Balances</div></div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Supplier</th>
+            <th style="text-align:right">Net Balance (¥)</th>
+            <th style="text-align:right">Not Due</th>
+            <th style="text-align:right">1-30 Days</th>
+            <th style="text-align:right">31-60 Days</th>
+            <th style="text-align:right">61-90 Days</th>
+            <th style="text-align:right">91+ Days</th>
+          </tr>
+        </thead>
+        <tbody id="dash-table-body"><tr><td colspan="7" class="text-center">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- LEDGERS TAB -->
+  <div class="tabs active" id="tab-ledgers">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Account <span>Ledgers</span></div>
+        <div class="page-sub">View detailed transactions and add vouchers</div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <select id="ledger-supplier-select" class="form-control" style="width:250px" onchange="loadLedger()">
+          <option value="">Select Supplier...</option>
+        </select>
+        <button class="req-edit btn btn-primary" onclick="openVoucherModal()" id="btn-add-voucher" style="display:none">+ Add Voucher</button>
+        <button class="btn btn-ghost" onclick="downloadLedgerPDF()" id="btn-pdf" style="display:none">PDF</button>
+      </div>
+    </div>
+    
+    <div id="ledger-content" style="display:none">
+      <div class="stats-bar">
+        <div class="stat-card red">
+          <div class="stat-val" id="ledg-closing">¥ 0 Cr</div>
+          <div class="stat-label">Closing Balance</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Vch Type</th>
+              <th>Ref No.</th>
+              <th>Description</th>
+              <th style="text-align:right">Debit (¥)</th>
+              <th style="text-align:right">Credit (¥)</th>
+              <th style="text-align:right">Balance</th>
+              <th style="text-align:center">Action</th>
+            </tr>
+          </thead>
+          <tbody id="ledger-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- OUTSTANDING TAB -->
+  <div class="tabs" id="tab-outstanding">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Outstanding <span>Ageing</span></div>
+        <div class="page-sub">FIFO based unpaid purchase invoice ageing report</div>
+      </div>
+      <select id="os-supplier-select" class="form-control" style="width:250px" onchange="loadOutstanding()">
+        <option value="ALL">All Suppliers</option>
+      </select>
+    </div>
+    
+    <div id="os-content">
+      <h3 style="color:var(--text);font-size:14px;margin-bottom:10px;padding-left:4px" id="os-bucket-title">Unpaid Invoices</h3>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Ref No.</th>
+              <th>Due Date</th>
+              <th style="text-align:right">Invoice Amt</th>
+              <th style="text-align:right">Pending Amt (¥)</th>
+              <th style="text-align:right">Ageing</th>
+            </tr>
+          </thead>
+          <tbody id="os-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+</div>
+
+<!-- Voucher Modal -->
+<div class="overlay" id="voucherModal">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header">
+      <div class="modal-title" id="voucherModalTitle">Add Voucher</div>
+      <div class="modal-close" onclick="closeModal('voucherModal')">✕</div>
+    </div>
+    <div class="modal-body">
+      <form id="voucherForm" onsubmit="saveVoucher(event)">
+        <input type="hidden" id="v_id">
+        <div class="voucher-form-grid">
+          <div class="form-group">
+            <label>Voucher Type <span class="req">*</span></label>
+            <select id="v_type" class="form-control" required onchange="vTypeChange()">
+              <option value="INVOICE">Purchase Invoice (CR)</option>
+              <option value="PAYMENT">Payment Made (DR)</option>
+              <option value="DEBIT_NOTE">Debit Note (DR)</option>
+              <option value="CREDIT_NOTE">Credit Note (CR)</option>
+              <option value="ADJUSTMENT">Adjustment (DR/CR)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Date <span class="req">*</span></label>
+            <input type="date" id="v_date" class="form-control" required>
+          </div>
+          <div class="form-group" id="v_drcr_grp" style="display:none">
+            <label>DR / CR <span class="req">*</span></label>
+            <select id="v_drcr" class="form-control">
+              <option value="DR">Debit (DR) - Reduces Payables</option>
+              <option value="CR">Credit (CR) - Increases Payables</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label id="v_amount_label">Amount (¥) <span class="req">*</span></label>
+            <input type="number" id="v_amount" class="form-control" step="0.01" required min="0.01">
+          </div>
+          <div class="form-group">
+            <label>Ref / Invoice No.</label>
+            <input type="text" id="v_ref" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Due Date</label>
+            <input type="date" id="v_due" class="form-control">
+          </div>
+          <div class="form-group full">
+            <label>Description / Narration</label>
+            <input type="text" id="v_desc" class="form-control" required>
+          </div>
+        </div>
+        <div style="text-align:right; margin-top:15px">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('voucherModal')">Cancel</button>
+          <button type="submit" class="req-edit btn btn-primary">Save Voucher</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="toast-area" id="toastArea"></div>
+
+<script>
+let suppliers = [];
+let currentTab = 'dashboard';
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadDashboard();
+    fetchSuppliersDropdown();
+});
+
+function showTab(id, el) {
+    document.querySelectorAll('.tabs').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
+    if(el) el.classList.add('active');
+    
+    currentTab = id;
+    if (id === 'dashboard') loadDashboard();
+    if (id === 'suppliers') loadSuppliers();
+    if (id === 'outstanding') loadOutstanding();
+}
+
+function toast(msg, type='info') {
+    const d = document.createElement('div');
+    d.className = `toast ${type}`;
+    d.innerText = msg;
+    document.getElementById('toastArea').appendChild(d);
+    setTimeout(() => {
+        d.style.animation = 'slideIn 0.3s reverse forwards';
+        setTimeout(()=>d.remove(), 300);
+    }, 4000);
+}
+
+function fmt(num) {
+    return Number(num).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// DASHBOARD
+async function loadDashboard() {
+    try {
+        const res = await fetch('/api/suppliers/summary');
+        const data = await res.json();
+        
+        const sc = document.getElementById('dash-stats').children;
+        sc[0].querySelector('.stat-val').innerText = `¥ ${fmt(data.total_payable_usd)}`;
+        sc[1].querySelector('.stat-val').innerText = data.suppliers_with_balance;
+        sc[2].querySelector('.stat-val').innerText = `¥ ${fmt(data.overdue_amount_usd)}`;
+        sc[3].querySelector('.stat-val').innerText = data.avg_payment_days;
+        
+        const tbody = document.getElementById('dash-table-body');
+        if (data.parties.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No active supplier balances found.</td></tr>';
+            return;
+        }
+        
+        let html = '';
+        data.parties.forEach(p => {
+            html += `
+            <tr>
+              <td>
+                <div style="font-weight:700">${p.company}</div>
+                <div style="font-size:10px;color:var(--text-muted)">${p.name}</div>
+              </td>
+              <td style="text-align:right">
+                <div class="${p.suffix==='Dr'?'bal-dr':'bal-cr'}">¥ ${fmt(Math.abs(p.balance_usd))} ${p.suffix}</div>
+              </td>
+              <td class="ageing-cell">${p.ageing.not_due>0 ? fmt(p.ageing.not_due):'-'}</td>
+              <td class="ageing-cell">${p.ageing.days_1_30>0 ? fmt(p.ageing.days_1_30):'-'}</td>
+              <td class="ageing-cell ${p.ageing.days_31_60>0?'warn':''}">${p.ageing.days_31_60>0 ? fmt(p.ageing.days_31_60):'-'}</td>
+              <td class="ageing-cell ${p.ageing.days_61_90>0?'danger':''}">${p.ageing.days_61_90>0 ? fmt(p.ageing.days_61_90):'-'}</td>
+              <td class="ageing-cell ${p.ageing.days_90_plus>0?'danger':''}">${p.ageing.days_90_plus>0 ? fmt(p.ageing.days_90_plus):'-'}</td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    } catch (e) {
+        toast('Error loading dashboard', 'err');
+    }
+}
+
+// SUPPLIERS
+async function loadSuppliers() {
+    const res = await fetch('/api/suppliers');
+    suppliers = await res.json();
+    const tbody = document.getElementById('suppliers-table-body');
+    if (suppliers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center">No suppliers yet.</td></tr>';
+        return;
+    }
+    let html = '';
+    suppliers.forEach(s => {
+        // API returns s.company (company name) and s.name (contact name)
+        html += `
+        <tr>
+          <td style="font-weight:600">${s.company || s.company_name || '—'}</td>
+          <td>${s.name || s.contact_person || '—'}</td>
+          <td>${s.city || s.country ? (s.city||'') + (s.country ? ' / '+s.country : '') : '—'}</td>
+          <td>${s.credit_days || '—'}</td>
+          <td>¥ ${fmt(s.credit_limit || 0)}</td>
+          <td style="text-align:right" class="${s.outstanding_balance>=0?'bal-cr':'bal-dr'}">
+             ¥ ${fmt(Math.abs(s.outstanding_balance))} ${s.outstanding_balance>=0?'Cr':'Dr'}
+          </td>
+        </tr>`;
+    });
+    tbody.innerHTML = html;
+}
+
+// LEDGERS & VOUCHERS
+function getSupplierCurrency(sid) {
+    return {code:'CNY', sym:'¥'};
+}
+
+async function fetchSuppliersDropdown() {
+    const res = await fetch('/api/suppliers');
+    const data = await res.json();
+    let html = '<option value="">Select Supplier...</option>';
+    let htmlAll = '<option value="ALL">All Suppliers</option>';
+    data.forEach(s => {
+        // API returns s.company (company name) and s.name (contact name)
+        const label = `${s.company || s.company_name || s.name || '—'} (${s.name || s.contact_person || ''})`;
+        const opt = `<option value="${s.id}">${label}</option>`;
+        html += opt;
+        htmlAll += opt;
+    });
+    document.getElementById('ledger-supplier-select').innerHTML = html;
+    document.getElementById('os-supplier-select').innerHTML = htmlAll;
+}
+
+function updateVoucherAmountLabel(sid) {
+    const cur = getSupplierCurrency(sid);
+    document.getElementById('v_amount_label').innerHTML = `Amount (${cur.sym}) <span class="req">*</span>`;
+}
+
+async function loadLedger() {
+    const sid = document.getElementById('ledger-supplier-select').value;
+    if(!sid) {
+        document.getElementById('ledger-content').style.display = 'none';
+        document.getElementById('btn-add-voucher').style.display = 'none';
+        document.getElementById('btn-pdf').style.display = 'none';
+        return;
+    }
+    document.getElementById('ledger-content').style.display = 'block';
+    document.getElementById('btn-add-voucher').style.display = 'inline-block';
+    document.getElementById('btn-pdf').style.display = 'inline-block';
+    updateVoucherAmountLabel(sid);
+    
+    const r = await fetch('/api/suppliers/'+sid+'/ledger');
+    const data = await r.json();
+    const cur = getSupplierCurrency(sid);
+    document.getElementById('ledg-closing').innerText = `${cur.sym} ${fmt(Math.abs(data.closing_balance))} ${data.balance_suffix}`;
+    const tbody = document.getElementById('ledger-table-body');
+    if (data.entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">No transactions found.</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    data.entries.forEach(e => {
+        const amount = e.amount_usd || 0;
+        const dr = e.dr_cr === 'DR' ? `${cur.sym} ${fmt(amount)}` : '';
+        const cr = e.dr_cr === 'CR' ? `${cur.sym} ${fmt(amount)}` : '';
+        const tclass = e.entry_type; 
+        
+        let actions = '';
+        if(e.entry_type !== 'OPENING') {
+            actions = `<button class="req-edit btn btn-ghost btn-sm" onclick="editVoucher('${e.id}')">Edit</button>
+                       <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteVoucher('${e.id}')">Del</button>`;
+        }
+        
+        html += `
+        <tr class="row-${tclass}">
+          <td>${e.entry_date}</td>
+          <td><span class="badge-${e.dr_cr.toLowerCase()}" style="padding:2px 6px;border-radius:4px;font-size:10px">${e.entry_type}</span></td>
+          <td>${e.ref_number || '-'}</td>
+          <td style="font-size:11px">${e.description}</td>
+          <td style="text-align:right;color:var(--accent)">${dr}</td>
+          <td style="text-align:right;color:var(--red)">${cr}</td>
+          <td style="text-align:right;font-weight:700">${cur.sym} ${fmt(Math.abs(e.running_balance))} ${e.balance_suffix}</td>
+          <td style="text-align:center">${actions}</td>
+        </tr>`;
+    });
+    tbody.innerHTML = html;
+}
+
+async function editVoucher(eid) {
+    const sid = document.getElementById('ledger-supplier-select').value;
+    const r = await fetch('/api/suppliers/'+sid+'/ledger');
+    const data = await r.json();
+    const e = data.entries.find(x => x.id === eid);
+    if(!e) return;
+    
+    document.getElementById('voucherForm').reset();
+    document.getElementById('v_id').value = e.id;
+    document.getElementById('v_type').value = e.entry_type;
+    document.getElementById('v_type').disabled = true;
+    updateVoucherAmountLabel(sid);
+    
+    vTypeChange();
+    if(e.entry_type === 'ADJUSTMENT') {
+        document.getElementById('v_drcr').value = e.dr_cr;
+    }
+    
+    document.getElementById('v_date').value = e.entry_date;
+    document.getElementById('v_amount').value = e.amount_usd || 0;
+    document.getElementById('v_ref').value = e.ref_number || '';
+    document.getElementById('v_due').value = e.due_date || '';
+    document.getElementById('v_desc').value = e.description || '';
+    
+    document.getElementById('voucherModalTitle').innerText = 'Edit Voucher';
+    openModal('voucherModal');
+}
+
+function openVoucherModal() {
+    const sid = document.getElementById('ledger-supplier-select').value;
+    document.getElementById('voucherForm').reset();
+    document.getElementById('v_id').value = '';
+    document.getElementById('v_type').disabled = false;
+    document.getElementById('v_date').value = new Date().toISOString().split('T')[0];
+    updateVoucherAmountLabel(sid);
+    vTypeChange();
+    document.getElementById('voucherModalTitle').innerText = 'Add Voucher';
+    openModal('voucherModal');
+}
+
+function vTypeChange() {
+    const t = document.getElementById('v_type').value;
+    if(t === 'ADJUSTMENT') {
+        document.getElementById('v_drcr_grp').style.display = 'block';
+    } else {
+        document.getElementById('v_drcr_grp').style.display = 'none';
+    }
+}
+
+async function saveVoucher(e) {
+    e.preventDefault();
+    const sid = document.getElementById('ledger-supplier-select').value;
+    if(!sid) return;
+    
+    const id = document.getElementById('v_id').value;
+    const cur = getSupplierCurrency(sid);
+    const amountValue = parseFloat(document.getElementById('v_amount').value);
+    const payload = {
+        entry_type: document.getElementById('v_type').value,
+        entry_date: document.getElementById('v_date').value,
+        ref_number: document.getElementById('v_ref').value,
+        due_date: document.getElementById('v_due').value,
+        description: document.getElementById('v_desc').value,
+    };
+    if (cur.code === 'CNY') {
+        payload.amount_cny = amountValue;
+    } else {
+        payload.amount_inr = amountValue;
+    }
+    if (payload.entry_type === 'INVOICE' || payload.entry_type === 'CREDIT_NOTE') {
+        payload.dr_cr = 'CR';
+    } else if (payload.entry_type === 'PAYMENT' || payload.entry_type === 'DEBIT_NOTE') {
+        payload.dr_cr = 'DR';
+    } else if (payload.entry_type === 'ADJUSTMENT') {
+        payload.dr_cr = document.getElementById('v_drcr').value;
+    }
+    
+    const m = id ? 'PUT' : 'POST';
+    const u = id ? '/api/ledger/supplier/'+id : '/api/suppliers/'+sid+'/ledger';
+    
+    try {
+        const r = await fetch(u, {
+            method: m,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const res = await r.json();
+        if(!r.ok) throw new Error(res.error || 'Failed');
+        toast('Voucher saved successfully', 'ok');
+        closeModal('voucherModal');
+        loadLedger();
+        loadDashboard();
+    } catch(err) {
+        toast(err.message, 'err');
+    }
+}
+
+async function deleteVoucher(eid) {
+    if(!confirm('Are you sure you want to delete this voucher?')) return;
+    try {
+        const r = await fetch('/api/ledger/supplier/'+eid, {method:'DELETE'});
+        const res = await r.json();
+        if(!r.ok) throw new Error(res.error || 'Failed to delete');
+        toast('Voucher deleted', 'ok');
+        loadLedger();
+    } catch(err) {
+        toast(err.message, 'err');
+    }
+}
+
+function downloadLedgerPDF() {
+    const sid = document.getElementById('ledger-supplier-select').value;
+    if(!sid) return;
+    window.open('/api/suppliers/'+sid+'/ledger/pdf', '_blank');
+}
+
+// OUTSTANDING
+async function loadOutstanding() {
+    const sid = document.getElementById('os-supplier-select').value;
+    const u = sid === 'ALL' ? '/api/suppliers/outstanding' : '/api/suppliers/'+sid+'/outstanding/fifo';
+    
+    try {
+        const r = await fetch(u);
+        const data = await r.json();
+        const tbody = document.getElementById('os-table-body');
+        
+        let invoices = [];
+        
+        if (sid === 'ALL') {
+            document.getElementById('os-bucket-title').innerText = 'Party Outstanding Summary';
+            if (data.parties.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">No outstanding balances.</td></tr>';
+                return;
+            }
+            let html = '';
+            data.parties.forEach(p => {
+                html += `<tr>
+                  <td>-</td>
+                  <td style="font-weight:600">${p.company}</td>
+                  <td>-</td>
+                  <td style="text-align:right">-</td>
+                  <td style="text-align:right">
+                    ${p.total_due > 0 ? `¥ ${fmt(p.total_due)}` : `<span style="color:var(--accent)">Advance: ¥ ${fmt(p.total_advance)}</span>`}
+                  </td>
+                  <td style="text-align:right">
+                    <span style="font-size:10px;color:var(--text-muted)">
+                     ${p.total_due > 0 ? `[ Not Due: ${fmt(p.not_due)} | 1-30: ${fmt(p.days_1_30)} | 31-60: ${fmt(p.days_31_60)} | 61-90: ${fmt(p.days_61_90)} | 91+: ${fmt(p.days_90_plus)} ]` : '[ Fully Paid ]'}
+                    </span>
+                  </td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        } else {
+            document.getElementById('os-bucket-title').innerText = 'Itemized Unpaid Invoices';
+            ['0_30', '31_60', '61_90', '91_plus'].forEach(k => {
+                data.buckets[k].forEach(inv => invoices.push(inv));
+            });
+            
+            if (invoices.length === 0) {
+                const advText = data.total_advance > 0 ? `<br><span style="color:var(--accent)">Advance Paid: ¥ ${fmt(data.total_advance)}</span>` : '';
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center">No unpaid invoices for this supplier.${advText}</td></tr>`;
+                return;
+            }
+            
+            invoices.sort((a,b) => new Date(a.date) - new Date(b.date));
+            
+            let html = '';
+            invoices.forEach(inv => {
+                const isOver = inv.days_overdue > 0;
+                html += `<tr>
+                  <td>${inv.date}</td>
+                  <td>${inv.ref || '-'}</td>
+                  <td style="${isOver?'color:var(--red)':''}">${inv.due_date || '-'}</td>
+                  <td style="text-align:right">¥ ${fmt(inv.amount)}</td>
+                  <td style="text-align:right;font-weight:700">¥ ${fmt(inv.remaining)}</td>
+                  <td style="text-align:right">
+                     <span class="badge-${isOver?'cr':'dr'}" style="padding:2px 6px;border-radius:4px;font-size:10px">
+                        ${isOver ? inv.days_overdue + ' Days Overdue' : 'Not Due'}
+                     </span>
+                  </td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+    } catch(err) {
+        toast('Failed to load outstanding data', 'err');
+    }
+}
+
+// Navigation Handler for Unified ERP Sidebar
+document.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const tab = urlParams.get('tab');
+  if (tab) {
+    const tabLink = document.querySelector(`.sb-item[onclick*="${tab}"]`);
+    if (tabLink) showTab(tab, tabLink);
+  }
+});
+</script>
+</body>
+</html>

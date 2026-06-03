@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sales Invoice — Entry</title>
+<style>
+{% include 'shared_styles.css' %}
+
+/* Modern Tally-Style Invoice Entry Styles */
+.invoice-wrapper {
+    background: var(--bg);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 120px);
+    overflow: hidden;
+}
+
+.invoice-header-pane {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.05));
+    border-bottom: 1px solid var(--border);
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+}
+
+.customer-info-grid {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 10px;
+    align-items: center;
+    font-size: 13px;
+}
+
+.customer-info-grid label {
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.customer-info-grid span {
+    font-weight: 500;
+    color: var(--text);
+}
+
+.meta-info-grid {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 10px;
+    align-items: center;
+    font-size: 13px;
+}
+
+.meta-info-grid label {
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.invoice-grid-container {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--bg);
+}
+
+.tally-grid {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.tally-grid th {
+    position: sticky;
+    top: 0;
+    background: var(--border);
+    color: var(--text);
+    text-transform: uppercase;
+    font-size: 11px;
+    padding: 10px 8px;
+    text-align: left;
+    z-index: 10;
+}
+
+.tally-grid td {
+    padding: 0;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+}
+
+.tally-grid td:last-child {
+    border-right: none;
+}
+
+.grid-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 8px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+}
+
+.grid-input:focus {
+    background: rgba(0, 240, 255, 0.05);
+    box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.grid-input.num {
+    text-align: right;
+}
+
+.grid-input:read-only {
+    color: var(--text2);
+}
+
+/* Auto-complete dropdown for grid */
+.autocomplete-list {
+    position: absolute;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    display: none;
+}
+
+.autocomplete-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.autocomplete-item:hover, .autocomplete-item.active {
+    background: var(--accent);
+    color: white;
+}
+
+.invoice-footer-pane {
+    background: var(--border);
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border);
+}
+
+.totals-area {
+    display: flex;
+    gap: 30px;
+}
+
+.total-box {
+    text-align: right;
+}
+
+.total-box label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    display: block;
+}
+
+.total-box .val {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.total-box .val.grand {
+    font-size: 24px;
+    color: var(--accent4);
+}
+
+.action-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+/* Info Tooltip for Stock/Rate */
+.cell-info {
+    font-size: 10px;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 8px;
+    background: rgba(0,0,0,0.1);
+}
+
+/* Form controls in header */
+.header-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    outline: none;
+}
+.header-input:focus {
+    border-color: var(--accent);
+}
+
+/* Override sidebar selection */
+.sb-nav .active { background: linear-gradient(90deg, rgba(0, 240, 255, 0.15) 0%, transparent 100%); border-left-color: var(--accent); color: #fff; text-shadow: 0 0 10px rgba(0, 240, 255, 0.5); }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sb-header">
+      <div class="sb-logo">
+        <div class="sb-logo-icon">🌊</div>
+        <div>
+          <div class="sb-company">Purchase Order</div>
+          <div class="sb-tagline">Greenwave Traders</div>
+        </div>
+      </div>
+      <div class="sb-badge">v2.0 — UNIFIED</div>
+    </div>
+
+    <nav class="sb-nav">
+      <div class="sb-item" onclick="window.location.href='/?tab=dashboard'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 13h1v2H0v-2zm2-4h1v6H2V9zm2-4h1v10H4V5zm2-3h1v13H6V2zm2 5h1v8H8V7zm2 4h1v4h-1v-4zm2-2h1v6h-1V9z"/></svg>
+        Dashboard
+      </div>
+
+      {% if 'po_dashboard' in user_permissions %}
+      <div class="sb-group" style="margin-top: 15px;">TRANSACTIONS</div>
+      <div class="sb-item" onclick="window.location.href='/?tab=quotations'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h14v2L9 7v7l-2-1-2 1V7L1 3zm12 1.5H3l4 2.8v6.4l1 .5 1-.5V5.3z"/></svg>
+        Quotations
+      </div>
+      <div class="sb-item" onclick="window.location.href='/?tab=pos'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+        Purchase Orders
+      </div>
+      {% endif %}
+      {% if 'customer_books' in user_permissions %}
+      <div class="sb-item active" onclick="window.location.href='/sales-invoice'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h14v2L9 7v7l-2-1-2 1V7L1 3zm12 1.5H3l4 2.8v6.4l1 .5 1-.5V5.3z"/></svg>
+        Sales Invoices
+      </div>
+      {% endif %}
+
+      {% if 'forwarder_dashboard' in user_permissions %}
+      <div class="sb-group" style="margin-top: 15px;">LOGISTICS</div>
+      <div class="sb-item" onclick="window.location.href='/forwarder-dashboard'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+        Shipment Tracking
+      </div>
+      {% endif %}
+
+      {% if 'supplier_books' in user_permissions or 'customer_books' in user_permissions %}
+      <div class="sb-group" style="margin-top: 15px;">ACCOUNTING</div>
+      {% endif %}
+      {% if 'customer_books' in user_permissions %}
+      <div class="sb-item" onclick="window.location.href='/customer-book'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h7A1.5 1.5 0 0 1 11 2.5v3.5h.5a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H4.5A1.5 1.5 0 0 1 3 13.5V10H2.5A1.5 1.5 0 0 1 1 8.5v-6zM3.5 10v3a.5.5 0 0 0 .5.5h6.5V7.5H4.5a.5.5 0 0 0-.5.5v2H3.5zM11 7V2.5a.5.5 0 0 0-.5-.5h-7a.5.5 0 0 0-.5.5V8.5a.5.5 0 0 0 .5.5H5V7h6z"/></svg>
+        Customer Books
+      </div>
+      <div class="sb-item" style="padding-left: 36px" onclick="window.location.href='/customer-book?tab=outstanding'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+        Outstanding Ageing
+      </div>
+      {% endif %}
+
+      {% if 'supplier_books' in user_permissions %}
+      <div class="sb-item" onclick="window.location.href='/supplier-book'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h7A1.5 1.5 0 0 1 11 2.5v3.5h.5a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H4.5A1.5 1.5 0 0 1 3 13.5V10H2.5A1.5 1.5 0 0 1 1 8.5v-6zM3.5 10v3a.5.5 0 0 0 .5.5h6.5V7.5H4.5a.5.5 0 0 0-.5.5v2H3.5zM11 7V2.5a.5.5 0 0 0-.5-.5h-7a.5.5 0 0 0-.5.5V8.5a.5.5 0 0 0 .5.5H5V7h6z"/></svg>
+        Supplier Books
+      </div>
+      <div class="sb-item" style="padding-left: 36px" onclick="window.location.href='/supplier-book?tab=outstanding'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+        Outstanding Ageing
+      </div>
+      {% endif %}
+
+      {% if 'po_dashboard' in user_permissions %}
+      <div class="sb-group" style="margin-top: 15px;">MASTERS</div>
+      <div class="sb-item" onclick="window.location.href='/?tab=masters'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 6a5 5 0 0110 0H3z"/></svg>
+        All Masters
+      </div>
+      {% endif %}
+
+      {% if 'admin_rbac' in user_permissions %}
+      <div class="sb-group" style="margin-top: 15px;">SYSTEM</div>
+      <div class="sb-item" onclick="window.location.href='/admin/rbac'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zm0 14A6 6 0 118 2a6 6 0 010 12zM6.5 5h3v2h-3V5zm0 4h3v2h-3V9z"/></svg>
+        Admin Panel
+      </div>
+      {% endif %}
+    </nav>
+    <div class="sb-footer">
+      <div style="font-size:11px;color:var(--text2);display:flex;justify-content:space-between;align-items:center;">
+        <span>👤 {{ current_user.username if current_user else 'Guest' }}</span>
+        <a href="/logout" style="color:var(--accent2);text-decoration:none;font-weight:bold;">Logout</a>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main" style="padding: 20px;">
+    <div class="page-header" style="margin-bottom: 15px;">
+      <div>
+        <div class="page-title">Sales Invoice <span>Entry</span></div>
+        <div class="page-sub">Fast, keyboard-optimized billing screen</div>
+      </div>
+    </div>
+
+    <div class="invoice-wrapper">
+      <!-- HEADER PANE -->
+      <div class="invoice-header-pane">
+        <div>
+          <div class="customer-info-grid">
+            <label>Customer</label>
+            <div style="position:relative">
+                <input type="text" id="custSearch" class="header-input" placeholder="Search customer (F2)..." autocomplete="off" onfocus="this.select()">
+                <div id="custList" class="autocomplete-list" style="width:100%"></div>
+                <input type="hidden" id="h_customerId">
+            </div>
+            
+            <label>Address</label>
+            <span id="lbl_address">—</span>
+            
+            <label>Mobile/Email</label>
+            <span id="lbl_contact">—</span>
+            
+            <label>Outstanding</label>
+            <span id="lbl_balance" style="color:var(--accent)">₹ 0.00</span>
+          </div>
+        </div>
+        <div>
+           <div class="meta-info-grid">
+             <label>Invoice No</label>
+             <input type="text" id="h_invNo" class="header-input" placeholder="Auto-generated">
+             
+             <label>Date</label>
+             <input type="date" id="h_date" class="header-input">
+             
+             <label>Due Date</label>
+             <input type="date" id="h_due" class="header-input">
+             
+             <label>Ref / PO</label>
+             <input type="text" id="h_ref" class="header-input" placeholder="Optional reference">
+           </div>
+        </div>
+      </div>
+
+      <!-- GRID PANE -->
+      <div class="invoice-grid-container" id="gridContainer" tabindex="0">
+        <table class="tally-grid" id="invGrid">
+          <thead>
+            <tr>
+              <th style="width:40px;text-align:center">#</th>
+              <th style="width:350px">Item Code / Search</th>
+              <th style="width:350px">Item Name</th>
+              <th>Description</th>
+              <th style="width:80px;text-align:right">Qty</th>
+              <th style="width:60px;text-align:center">Unit</th>
+              <th style="width:100px;text-align:right">Rate (₹)</th>
+              <th style="width:120px;text-align:right">Amount (₹)</th>
+            </tr>
+          </thead>
+          <tbody id="gridBody">
+            <!-- Rows injected by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- FOOTER PANE -->
+      <div class="invoice-footer-pane">
+        <div class="action-buttons">
+          <button class="btn btn-primary" onclick="saveInvoice('save')" id="btnSave">Save (Ctrl+S)</button>
+          <button class="btn btn-ghost" onclick="printInvoice()">Print</button>
+          <button class="btn btn-ghost" onclick="pdfInvoice()">PDF</button>
+          <button class="btn btn-ghost" onclick="whatsappInvoice()" style="color:var(--green)">WhatsApp</button>
+          <button class="btn btn-ghost" onclick="resetForm()" style="margin-left: 20px; color:var(--red)">Clear / New</button>
+        </div>
+        <div class="totals-area">
+          <div class="total-box" style="display:flex;align-items:center;gap:10px;text-align:left">
+            <label style="display:inline-block">Freight /<br>Transport</label>
+            <input type="number" id="f_freight" class="header-input num" style="width:100px" value="0" step="0.01" oninput="calcTotals()">
+          </div>
+          <div class="total-box">
+            <label>Grand Total (₹)</label>
+            <div class="val grand" id="f_grandTotal">0.00</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast-area" id="toastArea"></div>
+
+<script>
+// --- Global Data ---
+let customers = [];
+let items = [];
+
+// --- Initialization ---
+document.addEventListener('DOMContentLoaded', async () => {
+    document.getElementById('h_date').value = new Date().toISOString().split('T')[0];
+    await Promise.all([fetchCustomers(), fetchItems()]);
+    initCustomerAutocomplete();
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const editId = urlParams.get('edit_id');
+    if (editId) {
+        await loadInvoiceForEdit(editId);
+    } else {
+        fetchNextInvoiceNumber();
+        addGridRow(); // Start with 1 empty row
+    }
+    
+    // Global keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if(e.ctrlKey && e.key === 's') { e.preventDefault(); saveInvoice('save'); }
+        if(e.key === 'F2') { e.preventDefault(); document.getElementById('custSearch').focus(); }
+    });
+});
+
+function toast(msg, type='info') {
+    const d = document.createElement('div');
+    d.className = `toast ${type}`;
+    d.innerText = msg;
+    document.getElementById('toastArea').appendChild(d);
+    setTimeout(() => {
+        d.style.animation = 'slideIn 0.3s reverse forwards';
+        setTimeout(()=>d.remove(), 300);
+    }, 4000);
+}
+
+// --- Data Fetching ---
+async function fetchCustomers() {
+    try {
+        const r = await fetch('/api/customers');
+        customers = await r.json();
+    } catch(e) { console.error(e); }
+}
+
+async function fetchItems() {
+    try {
+        const r = await fetch('/api/items');
+        items = await r.json();
+    } catch(e) { console.error(e); }
+}
+
+async function fetchNextInvoiceNumber() {
+    try {
+        const r = await fetch('/api/next-invoice-number');
+        const d = await r.json();
+        document.getElementById('h_invNo').value = d.inv_number || '';
+    } catch(e) { console.error(e); }
+}
+
+window.editModeId = null;
+
+async function loadInvoiceForEdit(eid) {
+    try {
+        const r = await fetch('/api/invoices/ledger/' + eid);
+        if(!r.ok) throw new Error('Failed to load invoice for editing');
+        const data = await r.json();
+        
+        window.editModeId = eid; 
+        
+        // Populate Customer
+        const cust = customers.find(c => c.id === data.ledger.customer_id);
+        if(cust) selectCustomer(cust);
+        
+        // Populate Header
+        document.getElementById('h_invNo').value = data.invoice.invoice_no;
+        document.getElementById('h_date').value = data.invoice.invoice_date;
+        document.getElementById('h_due').value = data.invoice.due_date || '';
+        document.getElementById('h_ref').value = data.invoice.description || '';
+        document.getElementById('f_freight').value = data.invoice.discount_amount ? -data.invoice.discount_amount : 0;
+        
+        // Populate Grid
+        document.getElementById('gridBody').innerHTML = '';
+        if(data.items && data.items.length > 0) {
+            for(let i=0; i<data.items.length; i++) {
+                const item = data.items[i];
+                addGridRow();
+                const tr = document.getElementById('gridBody').lastElementChild;
+                const sysItem = items.find(x => x.id === item.item_id) || {name: item.description};
+                
+                tr.querySelector('.row-itemId').value = item.item_id;
+                tr.querySelector('.row-code').value = sysItem.name;
+                tr.querySelector('.row-name').value = sysItem.name;
+                tr.querySelector('.row-desc').value = item.description;
+                tr.querySelector('.row-qty').value = item.qty;
+                tr.querySelector('.row-rate').value = item.unit_price;
+            }
+        }
+        addGridRow(); // one empty row at bottom
+        calcTotals();
+        
+    } catch(e) {
+        toast(e.message, 'err');
+    }
+}
+
+// --- Customer Selection ---
+let custSelectedIdx = -1;
+function initCustomerAutocomplete() {
+    const inp = document.getElementById('custSearch');
+    const list = document.getElementById('custList');
+    
+    inp.addEventListener('input', () => {
+        const val = inp.value.toLowerCase();
+        list.innerHTML = '';
+        custSelectedIdx = -1;
+        if(!val) { list.style.display = 'none'; return; }
+        
+        const matches = customers.filter(c => c.company.toLowerCase().includes(val) || c.name.toLowerCase().includes(val));
+        if(matches.length === 0) { list.style.display = 'none'; return; }
+        
+        matches.slice(0, 10).forEach(c => {
+            const div = document.createElement('div');
+            div.className = 'autocomplete-item';
+            div.innerText = `${c.company} (${c.name})`;
+            div.onclick = () => selectCustomer(c);
+            list.appendChild(div);
+        });
+        
+        const rect = inp.getBoundingClientRect();
+        list.style.top = (inp.offsetTop + inp.offsetHeight) + 'px';
+        list.style.left = inp.offsetLeft + 'px';
+        list.style.width = inp.offsetWidth + 'px';
+        list.style.display = 'block';
+    });
+    
+    inp.addEventListener('keydown', (e) => {
+        if(list.style.display === 'block') {
+            const itemsDivs = list.querySelectorAll('.autocomplete-item');
+            if(e.key === 'ArrowDown') {
+                e.preventDefault();
+                if(custSelectedIdx < itemsDivs.length - 1) {
+                    if(custSelectedIdx >= 0) itemsDivs[custSelectedIdx].classList.remove('active');
+                    custSelectedIdx++;
+                    itemsDivs[custSelectedIdx].classList.add('active');
+                }
+            } else if(e.key === 'ArrowUp') {
+                e.preventDefault();
+                if(custSelectedIdx > 0) {
+                    itemsDivs[custSelectedIdx].classList.remove('active');
+                    custSelectedIdx--;
+                    itemsDivs[custSelectedIdx].classList.add('active');
+                }
+            } else if(e.key === 'Enter') {
+                e.preventDefault();
+                if(custSelectedIdx >= 0) {
+                    itemsDivs[custSelectedIdx].click();
+                } else if(itemsDivs.length > 0) {
+                    itemsDivs[0].click();
+                }
+            }
+        }
+    });
+    
+    document.addEventListener('click', (e) => {
+        if(e.target !== inp) list.style.display = 'none';
+    });
+}
+
+function selectCustomer(c) {
+    document.getElementById('custSearch').value = c.company;
+    document.getElementById('h_customerId').value = c.id;
+    document.getElementById('lbl_address').innerText = [c.address, c.city, c.state].filter(Boolean).join(', ') || '-';
+    document.getElementById('lbl_contact').innerText = [c.phone, c.email].filter(Boolean).join(' / ') || '-';
+    
+    const bal = c.outstanding_balance;
+    const sfx = bal >= 0 ? 'Dr' : 'Cr';
+    document.getElementById('lbl_balance').innerText = `₹ ${Math.abs(bal).toLocaleString('en-IN', {minimumFractionDigits:2})} ${sfx}`;
+    document.getElementById('lbl_balance').style.color = bal > 0 ? 'var(--red)' : 'var(--accent)';
+    
+    // Default due date
+    const d = new Date(document.getElementById('h_date').value);
+    d.setDate(d.getDate() + (c.credit_days || 0));
+    document.getElementById('h_due').value = d.toISOString().split('T')[0];
+    
+    document.getElementById('custList').style.display = 'none';
+    
+    // Move focus to first grid row
+    const firstCode = document.querySelector('.row-code');
+    if(firstCode) firstCode.focus();
+}
+
+// --- Excel-Style Grid ---
+function addGridRow() {
+    const tbody = document.getElementById('gridBody');
+    const rowIdx = tbody.children.length;
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td style="text-align:center;color:var(--text2)">${rowIdx + 1}</td>
+        <td style="position:relative">
+            <input type="text" class="grid-input row-code" placeholder="Search..." autocomplete="off">
+            <input type="hidden" class="row-itemId">
+            <div class="autocomplete-list row-item-list" style="width:300px"></div>
+        </td>
+        <td><input type="text" class="grid-input row-name" readonly tabindex="-1"></td>
+        <td><input type="text" class="grid-input row-desc"></td>
+        <td><input type="number" class="grid-input num row-qty" value="" min="0" step="0.01"></td>
+        <td><input type="text" class="grid-input row-unit" readonly tabindex="-1" style="text-align:center"></td>
+        <td><input type="number" class="grid-input num row-rate" value="" min="0" step="0.01"></td>
+        <td style="position:relative">
+            <input type="text" class="grid-input num row-amt" readonly tabindex="-1">
+            <div class="cell-info" style="display:none;position:absolute;bottom:-18px;right:0;width:200px;text-align:right">
+               Stock: <span class="lbl-stock">0</span> | Last: ₹<span class="lbl-last">0</span>
+            </div>
+        </td>
+    `;
+    tbody.appendChild(tr);
+    
+    // Bind events
+    const inpCode = tr.querySelector('.row-code');
+    const inpQty = tr.querySelector('.row-qty');
+    const inpRate = tr.querySelector('.row-rate');
+    const list = tr.querySelector('.row-item-list');
+    
+    // Math logic
+    const calcRow = () => {
+        const q = parseFloat(inpQty.value) || 0;
+        const r = parseFloat(inpRate.value) || 0;
+        tr.querySelector('.row-amt').value = (q * r).toFixed(2);
+        calcTotals();
+    };
+    
+    inpQty.addEventListener('input', calcRow);
+    inpRate.addEventListener('input', calcRow);
+    
+    // Autocomplete
+    let selectedItemIndex = -1;
+    
+    inpCode.addEventListener('input', () => {
+        const val = inpCode.value.toLowerCase();
+        list.innerHTML = '';
+        selectedItemIndex = -1;
+        if(!val) { list.style.display = 'none'; return; }
+        
+        const matches = items.filter(i => (i.name||'').toLowerCase().includes(val) || (i.id||'').toLowerCase().includes(val));
+        if(matches.length === 0) { list.style.display = 'none'; return; }
+        
+        matches.slice(0, 15).forEach((item, idx) => {
+            const div = document.createElement('div');
+            div.className = 'autocomplete-item';
+            div.innerText = item.name;
+            div.onclick = () => selectItemForRow(tr, item);
+            list.appendChild(div);
+        });
+        
+        list.style.top = '30px';
+        list.style.left = '0';
+        list.style.display = 'block';
+    });
+    
+    // Keyboard Navigation
+    tr.querySelectorAll('.grid-input:not([readonly])').forEach((inp, myIdx, rowInputs) => {
+        inp.addEventListener('keydown', (e) => {
+            
+            // Grid Arrow Navigation
+            if(e.key === 'ArrowRight' && inp.selectionStart === inp.selectionEnd && inp.selectionEnd === inp.value.length) {
+                e.preventDefault();
+                if(myIdx < rowInputs.length - 1) rowInputs[myIdx+1].focus();
+            }
+            else if(e.key === 'ArrowLeft' && inp.selectionStart === inp.selectionEnd && inp.selectionStart === 0) {
+                e.preventDefault();
+                if(myIdx > 0) rowInputs[myIdx-1].focus();
+            }
+            else if(e.key === 'ArrowDown') {
+                if(list.style.display === 'block') {
+                    // Autocomplete nav
+                    e.preventDefault();
+                    const itemsDivs = list.querySelectorAll('.autocomplete-item');
+                    if(selectedItemIndex < itemsDivs.length - 1) {
+                        if(selectedItemIndex >= 0) itemsDivs[selectedItemIndex].classList.remove('active');
+                        selectedItemIndex++;
+                        itemsDivs[selectedItemIndex].classList.add('active');
+                    }
+                } else {
+                    // Move down a row
+                    e.preventDefault();
+                    const nextTr = tr.nextElementSibling;
+                    if(nextTr) {
+                        const nextInputs = Array.from(nextTr.querySelectorAll('.grid-input:not([readonly])'));
+                        if(myIdx < nextInputs.length) nextInputs[myIdx].focus();
+                    } else if(inp === rowInputs[rowInputs.length-1]) {
+                        // At the last input of the last row, add new row
+                        addGridRow();
+                        tr.nextElementSibling.querySelector('.row-code').focus();
+                    }
+                }
+            }
+            else if(e.key === 'ArrowUp') {
+                if(list.style.display === 'block') {
+                    e.preventDefault();
+                    const itemsDivs = list.querySelectorAll('.autocomplete-item');
+                    if(selectedItemIndex > 0) {
+                        itemsDivs[selectedItemIndex].classList.remove('active');
+                        selectedItemIndex--;
+                        itemsDivs[selectedItemIndex].classList.add('active');
+                    }
+                } else {
+                    e.preventDefault();
+                    const prevTr = tr.previousElementSibling;
+                    if(prevTr) {
+                        const prevInputs = Array.from(prevTr.querySelectorAll('.grid-input:not([readonly])'));
+                        if(myIdx < prevInputs.length) prevInputs[myIdx].focus();
+                    }
+                }
+            }
+            else if(e.key === 'Enter') {
+                e.preventDefault();
+                if(list.style.display === 'block' && selectedItemIndex >= 0) {
+                    list.querySelectorAll('.autocomplete-item')[selectedItemIndex].click();
+                } else {
+                    if(myIdx < rowInputs.length - 1) {
+                        rowInputs[myIdx+1].focus();
+                    } else {
+                        // Last column, enter pressed -> Next row
+                        const nextTr = tr.nextElementSibling;
+                        if(nextTr) {
+                            nextTr.querySelector('.row-code').focus();
+                        } else {
+                            addGridRow();
+                            tr.nextElementSibling.querySelector('.row-code').focus();
+                        }
+                    }
+                }
+            }
+            else if(e.key === 'Escape') {
+                list.style.display = 'none';
+            }
+        });
+    });
+    
+    document.addEventListener('click', (e) => {
+        if(e.target !== inpCode) list.style.display = 'none';
+    });
+}
+
+async function selectItemForRow(tr, item) {
+    tr.querySelector('.row-code').value = item.name;
+    tr.querySelector('.row-itemId').value = item.id;
+    tr.querySelector('.row-name').value = item.name;
+    tr.querySelector('.row-desc').value = item.description || '';
+    tr.querySelector('.row-unit').value = item.unit || 'PCS';
+    tr.querySelector('.row-rate').value = item.default_price_usd || 0; // Fallback, will overwrite
+    tr.querySelector('.row-item-list').style.display = 'none';
+    
+    // Focus Qty
+    tr.querySelector('.row-qty').focus();
+    
+    // Fetch Stock and Last Rate async
+    const cid = document.getElementById('h_customerId').value;
+    const infoDiv = tr.querySelector('.cell-info');
+    infoDiv.style.display = 'flex';
+    
+    try {
+        const [stockRes, rateRes] = await Promise.all([
+            fetch(`/api/items/${item.id}/stock`),
+            cid ? fetch(`/api/customers/${cid}/last-sale-rate/${item.id}`) : Promise.resolve(null)
+        ]);
+        
+        if(stockRes.ok) {
+            const stockData = await stockRes.json();
+            tr.querySelector('.lbl-stock').innerText = stockData.stock;
+        }
+        
+        if(rateRes && rateRes.ok) {
+            const rateData = await rateRes.json();
+            const lastRate = rateData.last_rate || item.default_price_usd || 0;
+            tr.querySelector('.lbl-last').innerText = lastRate;
+            tr.querySelector('.row-rate').value = lastRate; // Auto-fill rate
+        }
+    } catch(e) { console.error(e); }
+    
+    // Re-calc
+    const q = parseFloat(tr.querySelector('.row-qty').value) || 1;
+    tr.querySelector('.row-qty').value = q;
+    const r = parseFloat(tr.querySelector('.row-rate').value) || 0;
+    tr.querySelector('.row-amt').value = (q * r).toFixed(2);
+    calcTotals();
+}
+
+function calcTotals() {
+    let sub = 0;
+    document.querySelectorAll('.inv-row, #gridBody tr').forEach(tr => {
+        const amt = parseFloat(tr.querySelector('.row-amt').value) || 0;
+        sub += amt;
+    });
+    const freight = parseFloat(document.getElementById('f_freight').value) || 0;
+    const grand = sub + freight;
+    
+    document.getElementById('f_grandTotal').innerText = grand.toLocaleString('en-IN', {minimumFractionDigits:2});
+}
+
+function resetForm() {
+    if(!confirm("Clear all data and start new?")) return;
+    document.getElementById('h_customerId').value = '';
+    document.getElementById('custSearch').value = '';
+    document.getElementById('lbl_address').innerText = '—';
+    document.getElementById('lbl_contact').innerText = '—';
+    document.getElementById('lbl_balance').innerText = '₹ 0.00';
+    
+    document.getElementById('h_invNo').value = '';
+    fetchNextInvoiceNumber();
+    document.getElementById('h_date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('h_due').value = '';
+    document.getElementById('h_ref').value = '';
+    
+    document.getElementById('gridBody').innerHTML = '';
+    document.getElementById('f_freight').value = '0';
+    calcTotals();
+    
+    addGridRow();
+    document.getElementById('custSearch').focus();
+}
+
+async function saveInvoice(action) {
+    const cid = document.getElementById('h_customerId').value;
+    if(!cid) return toast('Please select a customer first', 'err');
+    
+    const items = [];
+    document.querySelectorAll('#gridBody tr').forEach(tr => {
+        const iId = tr.querySelector('.row-itemId').value;
+        const q = parseFloat(tr.querySelector('.row-qty').value) || 0;
+        const r = parseFloat(tr.querySelector('.row-rate').value) || 0;
+        if(iId && q > 0) {
+            items.push({
+                item_id: iId,
+                qty: q,
+                unit_price: r,
+                description: tr.querySelector('.row-desc').value
+            });
+        }
+    });
+    
+    if(items.length === 0) return toast('Invoice must contain at least one valid item', 'err');
+    
+    const freight = parseFloat(document.getElementById('f_freight').value) || 0;
+    const payload = {
+        entry_type: 'INVOICE',
+        entry_date: document.getElementById('h_date').value,
+        due_date: document.getElementById('h_due').value || null,
+        ref_number: document.getElementById('h_invNo').value || document.getElementById('h_ref').value || '',
+        description: document.getElementById('h_ref').value || 'Sales Invoice',
+        items: items,
+        tax_rate: 0,
+        discount_amount: -freight 
+    };
+    
+    const btn = document.getElementById('btnSave');
+    const origText = btn.innerText;
+    btn.innerText = 'Saving...';
+    btn.disabled = true;
+    
+    try {
+        const url = window.editModeId ? `/api/ledger/customer/${window.editModeId}` : `/api/customers/${cid}/ledger`;
+        const method = window.editModeId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        
+        if(!res.ok) throw new Error(data.error || 'Failed to save invoice');
+        
+        toast('Invoice saved successfully!', 'ok');
+        
+        setTimeout(() => resetForm(), 1000);
+        
+    } catch(err) {
+        toast(err.message, 'err');
+    } finally {
+        btn.innerText = origText;
+        btn.disabled = false;
+    }
+}
+
+function getInvoiceDetailsForAction() {
+    const cid = document.getElementById('h_customerId').value;
+    const invNo = document.getElementById('h_invNo').value || document.getElementById('h_ref').value;
+    if(!cid || !invNo) {
+        toast('Please select a customer and ensure Invoice No is present.', 'err');
+        return null;
+    }
+    return { cid, invNo };
+}
+
+function printInvoice() {
+    const details = getInvoiceDetailsForAction();
+    if(details) window.open(`/api/customers/${details.cid}/invoices/${details.invNo}/pdf`, '_blank');
+}
+
+function pdfInvoice() {
+    const details = getInvoiceDetailsForAction();
+    if(details) window.open(`/api/customers/${details.cid}/invoices/${details.invNo}/pdf`, '_blank');
+}
+
+function whatsappInvoice() {
+    const details = getInvoiceDetailsForAction();
+    if(!details) return;
+    const phone = document.getElementById('lbl_contact').innerText.split('/')[0].trim();
+    const gt = document.getElementById('f_grandTotal').innerText;
+    const msg = encodeURIComponent(`Dear Customer,\nYour invoice ${details.invNo} for ₹ ${gt} has been generated. Please let us know if you need the PDF.`);
+    if(phone && phone !== '—' && phone.length > 5) {
+        window.open(`https://wa.me/${phone.replace(/[^0-9]/g,'')}?text=${msg}`, '_blank');
+    } else {
+        toast('No valid phone number for WhatsApp', 'warn');
+    }
+}
+
+// Navigation Handler for Unified ERP Sidebar
+document.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const tab = urlParams.get('tab');
+  if (tab) {
+    const tabLink = document.querySelector(`.sb-item[onclick*="${tab}"]`);
+    if (tabLink) showTab(tab, tabLink);
+  }
+});
+</script>
+</body>
+</html>

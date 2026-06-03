@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customer Books — Purchase Order</title>
+<style>
+{% include 'shared_styles.css' %}
+
+/* Additional specific styles for accounting books */
+.voucher-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
+.voucher-form-grid.full { grid-template-columns: 1fr; }
+.bal-dr { color: var(--accent); font-weight: 700; }
+.bal-cr { color: var(--red); font-weight: 700; }
+.badge-dr { background: rgba(0, 240, 255, 0.1); color: var(--accent); border: 1px solid rgba(0,240,255,0.2); }
+.badge-cr { background: rgba(255, 51, 102, 0.1); color: var(--red); border: 1px solid rgba(255,51,102,0.2); }
+
+.ageing-cell { font-size: 11px; text-align: right; }
+.ageing-cell.danger { color: var(--red); font-weight: 700; }
+.ageing-cell.warn { color: #f59e0b; font-weight: 600; }
+
+/* Ledger Table Colors */
+.row-INVOICE { background: rgba(255,255,255,0.02); }
+.row-PAYMENT { background: rgba(0,255,100,0.05); }
+.row-ADJUSTMENT { background: rgba(200,200,200,0.02); }
+
+/* Book Sidebar Specific */
+.sb-nav .active { background: linear-gradient(90deg, rgba(0, 240, 255, 0.15) 0%, transparent 100%); border-left-color: var(--accent); color: #fff; text-shadow: 0 0 10px rgba(0, 240, 255, 0.5); }
+</style>
+
+    {% if 'customer_edit' not in user_permissions %}
+    <style> .req-edit { display: none !important; pointer-events: none !important; } </style>
+    {% endif %}
+    {% if 'customer_delete' not in user_permissions %}
+    <style> .req-delete { display: none !important; pointer-events: none !important; } </style>
+    {% endif %}
+    </head>
+
+<body>
+
+<div class="layout">
+<aside class="sidebar">
+  <div class="sb-header">
+    <div class="sb-logo">
+      <div class="sb-logo-icon">🌊</div>
+      <div>
+        <div class="sb-company">Purchase Order</div>
+        <div class="sb-tagline">Greenwave Traders</div>
+      </div>
+    </div>
+    <div class="sb-badge">v2.0 — UNIFIED</div>
+  </div>
+
+  <nav class="sb-nav">
+    <div class="sb-item" onclick="window.location.href='/?tab=dashboard'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 13h1v2H0v-2zm2-4h1v6H2V9zm2-4h1v10H4V5zm2-3h1v13H6V2zm2 5h1v8H8V7zm2 4h1v4h-1v-4zm2-2h1v6h-1V9z"/></svg>
+      Dashboard
+    </div>
+
+    {% if 'po_dashboard' in user_permissions %}
+    <div class="sb-group" style="margin-top: 15px;">TRANSACTIONS</div>
+    <div class="sb-item" onclick="window.location.href='/?tab=quotations'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h14v2L9 7v7l-2-1-2 1V7L1 3zm12 1.5H3l4 2.8v6.4l1 .5 1-.5V5.3z"/></svg>
+      Quotations
+    </div>
+    <div class="sb-item" onclick="window.location.href='/?tab=pos'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+      Purchase Orders
+    </div>
+    {% endif %}
+    {% if 'customer_books' in user_permissions %}
+    <div class="sb-item" onclick="window.location.href='/sales-invoice'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h14v2L9 7v7l-2-1-2 1V7L1 3zm12 1.5H3l4 2.8v6.4l1 .5 1-.5V5.3z"/></svg>
+      Sales Invoices
+    </div>
+    {% endif %}
+
+    {% if 'forwarder_dashboard' in user_permissions %}
+    <div class="sb-group" style="margin-top: 15px;">LOGISTICS</div>
+    <div class="sb-item" onclick="window.location.href='/forwarder-dashboard'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+      Shipment Tracking
+    </div>
+    {% endif %}
+
+    {% if 'supplier_books' in user_permissions or 'customer_books' in user_permissions %}
+    <div class="sb-group" style="margin-top: 15px;">ACCOUNTING</div>
+    {% endif %}
+    {% if 'customer_books' in user_permissions %}
+    <div class="sb-item active" onclick="window.location.href='/customer-book'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h7A1.5 1.5 0 0 1 11 2.5v3.5h.5a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H4.5A1.5 1.5 0 0 1 3 13.5V10H2.5A1.5 1.5 0 0 1 1 8.5v-6zM3.5 10v3a.5.5 0 0 0 .5.5h6.5V7.5H4.5a.5.5 0 0 0-.5.5v2H3.5zM11 7V2.5a.5.5 0 0 0-.5-.5h-7a.5.5 0 0 0-.5.5V8.5a.5.5 0 0 0 .5.5H5V7h6z"/></svg>
+      Customer Books
+    </div>
+    <div class="sb-item" style="padding-left: 36px" onclick="showTab('outstanding', this)">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+      Outstanding Ageing
+    </div>
+    {% endif %}
+
+    {% if 'supplier_books' in user_permissions %}
+    <div class="sb-item" onclick="window.location.href='/supplier-book'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h7A1.5 1.5 0 0 1 11 2.5v3.5h.5a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H4.5A1.5 1.5 0 0 1 3 13.5V10H2.5A1.5 1.5 0 0 1 1 8.5v-6zM3.5 10v3a.5.5 0 0 0 .5.5h6.5V7.5H4.5a.5.5 0 0 0-.5.5v2H3.5zM11 7V2.5a.5.5 0 0 0-.5-.5h-7a.5.5 0 0 0-.5.5V8.5a.5.5 0 0 0 .5.5H5V7h6z"/></svg>
+      Supplier Books
+    </div>
+    <div class="sb-item" style="padding-left: 36px" onclick="window.location.href='/supplier-book?tab=outstanding'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+      Outstanding Ageing
+    </div>
+    {% endif %}
+
+    {% if 'po_dashboard' in user_permissions %}
+    <div class="sb-group" style="margin-top: 15px;">MASTERS</div>
+    <div class="sb-item" onclick="window.location.href='/?tab=masters'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 6a5 5 0 0110 0H3z"/></svg>
+      All Masters
+    </div>
+    {% endif %}
+
+    {% if 'admin_rbac' in user_permissions %}
+    <div class="sb-group" style="margin-top: 15px;">SYSTEM</div>
+    <div class="sb-item" onclick="window.location.href='/admin/rbac'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zm0 14A6 6 0 118 2a6 6 0 010 12zM6.5 5h3v2h-3V5zm0 4h3v2h-3V9z"/></svg>
+      Admin Panel
+    </div>
+    {% endif %}
+  </nav>
+
+  <div class="sb-footer">
+    <div style="font-size:11px;color:var(--text2);display:flex;justify-content:space-between;align-items:center;">
+      <span>👤 {{ current_user.username if current_user else 'Guest' }}</span>
+      <a href="/logout" style="color:var(--accent2);text-decoration:none;font-weight:bold;">Logout</a>
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+  <!-- DASHBOARD TAB (Hidden) -->
+  <div class="tabs" id="tab-dashboard" style="display: none;">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Receivable <span>Dashboard</span></div>
+        <div class="page-sub">High-level overview of money owed by customers</div>
+      </div>
+      <button class="btn btn-ghost" onclick="loadDashboard()">↻ Refresh</button>
+    </div>
+    <div class="stats-bar" id="dash-stats">
+      <div class="stat-card blue"><div class="stat-val">₹ 0</div><div class="stat-label">Total Receivable</div></div>
+      <div class="stat-card purple"><div class="stat-val">0</div><div class="stat-label">Customers w/ Balance</div></div>
+      <div class="stat-card red"><div class="stat-val">₹ 0</div><div class="stat-label">Overdue Amount</div></div>
+      <div class="stat-card yellow"><div class="stat-val">0</div><div class="stat-label">Avg Collection Days</div></div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header"><div class="table-title">Customer Balances</div></div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th style="text-align:right">Net Balance (₹)</th>
+            <th style="text-align:right">Not Due</th>
+            <th style="text-align:right">1-30 Days</th>
+            <th style="text-align:right">31-60 Days</th>
+            <th style="text-align:right">61-90 Days</th>
+            <th style="text-align:right">91+ Days</th>
+          </tr>
+        </thead>
+        <tbody id="dash-table-body"><tr><td colspan="7" class="text-center">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- LEDGERS TAB -->
+  <div class="tabs active" id="tab-ledgers">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Account <span>Ledgers</span></div>
+        <div class="page-sub">View detailed transactions and add vouchers</div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <select id="ledger-customer-select" class="form-control" style="width:250px" onchange="loadLedger()">
+          <option value="">Select Customer...</option>
+        </select>
+        <button class="req-edit btn btn-primary" onclick="openVoucherModal()" id="btn-add-voucher" style="display:none">+ Add Voucher</button>
+        <button class="btn btn-ghost" onclick="downloadLedgerPDF()" id="btn-pdf" style="display:none">PDF</button>
+      </div>
+    </div>
+    
+    <div id="ledger-content" style="display:none">
+      <div class="stats-bar">
+        <div class="stat-card blue">
+          <div class="stat-val" id="ledg-closing">₹ 0 Dr</div>
+          <div class="stat-label">Closing Balance</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Vch Type</th>
+              <th>Ref No.</th>
+              <th>Description</th>
+              <th style="text-align:right">Debit (₹)</th>
+              <th style="text-align:right">Credit (₹)</th>
+              <th style="text-align:right">Balance</th>
+              <th style="text-align:center">Action</th>
+            </tr>
+          </thead>
+          <tbody id="ledger-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- OUTSTANDING TAB -->
+  <div class="tabs" id="tab-outstanding">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Outstanding <span>Ageing</span></div>
+        <div class="page-sub">FIFO based unpaid invoice ageing report</div>
+      </div>
+      <select id="os-customer-select" class="form-control" style="width:250px" onchange="loadOutstanding()">
+        <option value="ALL">All Customers</option>
+      </select>
+    </div>
+    
+    <div id="os-content">
+      <h3 style="color:var(--text);font-size:14px;margin-bottom:10px;padding-left:4px" id="os-bucket-title">Unpaid Invoices</h3>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Ref No.</th>
+              <th>Due Date</th>
+              <th style="text-align:right">Invoice Amt</th>
+              <th style="text-align:right">Pending Amt (₹)</th>
+              <th style="text-align:right">Ageing</th>
+              <th style="text-align:center">Action</th>
+            </tr>
+          </thead>
+          <tbody id="os-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+</div>
+
+<!-- MODALS -->
+
+<!-- Customer Modal -->
+<div class="overlay" id="customerModal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <div class="modal-title" id="customerModalTitle">Add Customer</div>
+      <div class="modal-close" onclick="closeModal('customerModal')">✕</div>
+    </div>
+    <div class="modal-body">
+      <form id="customerForm" onsubmit="saveCustomer(event)">
+        <input type="hidden" id="c_id">
+        <div class="voucher-form-grid">
+          <div class="form-group">
+            <label>Company Name <span class="req">*</span></label>
+            <input type="text" id="c_company" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Contact Name <span class="req">*</span></label>
+            <input type="text" id="c_name" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="c_email" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="text" id="c_phone" class="form-control">
+          </div>
+          <div class="form-group full">
+            <label>Address</label>
+            <input type="text" id="c_address" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>City</label>
+            <input type="text" id="c_city" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>State</label>
+            <input type="text" id="c_state" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>GSTIN</label>
+            <input type="text" id="c_gstin" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Credit Days</label>
+            <input type="number" id="c_credit_days" class="form-control" value="30">
+          </div>
+          <div class="form-group">
+            <label>Credit Limit (₹)</label>
+            <input type="number" id="c_credit_limit" class="form-control" value="0">
+          </div>
+          <div class="form-group" id="c_opening_grp">
+            <label>Opening Balance (₹) (Debit)</label>
+            <input type="number" id="c_opening" class="form-control" value="0" step="0.01">
+          </div>
+        </div>
+        <div style="text-align:right; margin-top:15px">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('customerModal')">Cancel</button>
+          <button type="submit" class="req-edit btn btn-primary">Save Customer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Voucher Modal -->
+<div class="overlay" id="voucherModal">
+  <div class="modal" style="max-width:750px; width:95%">
+    <div class="modal-header">
+      <div class="modal-title" id="voucherModalTitle">Add Voucher</div>
+      <div class="modal-close" onclick="closeModal('voucherModal')">✕</div>
+    </div>
+    <div class="modal-body">
+      <form id="voucherForm" onsubmit="saveVoucher(event)">
+        <input type="hidden" id="v_id">
+        <div class="voucher-form-grid">
+          <div class="form-group">
+            <label>Voucher Type <span class="req">*</span></label>
+            <select id="v_type" class="form-control" required onchange="vTypeChange()">
+              <option value="PAYMENT">Receipt / Payment (CR)</option>
+              <option value="DEBIT_NOTE">Debit Note (DR)</option>
+              <option value="CREDIT_NOTE">Credit Note (CR)</option>
+              <option value="ADJUSTMENT">Adjustment (DR/CR)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Date <span class="req">*</span></label>
+            <input type="date" id="v_date" class="form-control" required>
+          </div>
+          <div class="form-group" id="v_drcr_grp" style="display:none">
+            <label>DR / CR <span class="req">*</span></label>
+            <select id="v_drcr" class="form-control">
+              <option value="DR">Debit (DR) - Increases Bal</option>
+              <option value="CR">Credit (CR) - Reduces Bal</option>
+            </select>
+          </div>
+          <div class="form-group" id="v_amount_grp">
+            <label>Amount (₹) <span class="req">*</span></label>
+            <input type="number" id="v_amount" class="form-control" step="0.01" required min="0.01">
+          </div>
+          
+          <!-- INVOICE ITEMS GRID -->
+          <div id="v_invoice_grid" style="display:none; grid-column: 1 / -1; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
+              <label style="margin-bottom:10px; display:block;">Invoice Line Items <span class="req">*</span></label>
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
+                  <thead>
+                      <tr style="border-bottom: 1px solid var(--border); text-align: left;">
+                          <th style="padding: 5px; width: 35%;">Item</th>
+                          <th style="padding: 5px; width: 30%;">Description</th>
+                          <th style="padding: 5px; width: 10%;">Qty</th>
+                          <th style="padding: 5px; width: 15%;">Unit Price</th>
+                          <th style="padding: 5px; width: 15%; text-align: right;">Total</th>
+                          <th style="padding: 5px; width: 5%;"></th>
+                      </tr>
+                  </thead>
+                  <tbody id="invoice-items-tbody">
+                  </tbody>
+              </table>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="addInvoiceRow()">+ Add Item</button>
+              
+              <div style="display:flex; justify-content: flex-end; margin-top: 15px;">
+                  <div style="width: 300px; padding: 15px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border);">
+                      <div style="display:flex; justify-content: space-between; margin-bottom: 10px;">
+                          <span>Subtotal:</span>
+                          <span id="inv_subtotal">₹ 0.00</span>
+                      </div>
+                      <div style="display:flex; justify-content: space-between; margin-bottom: 10px; align-items: center;">
+                          <span>Discount (₹):</span>
+                          <input type="number" id="inv_discount" class="form-control" style="width: 100px; padding: 4px 8px; font-size:12px;" value="0" step="0.01" min="0" oninput="calcInvoiceTotals()">
+                      </div>
+                      <div style="display:flex; justify-content: space-between; margin-bottom: 10px; align-items: center;">
+                          <span>Tax Rate (%):</span>
+                          <input type="number" id="inv_tax_rate" class="form-control" style="width: 100px; padding: 4px 8px; font-size:12px;" value="0" step="0.01" min="0" oninput="calcInvoiceTotals()">
+                      </div>
+                      <div style="display:flex; justify-content: space-between; margin-bottom: 10px;">
+                          <span>Tax Amount:</span>
+                          <span id="inv_tax_amount">₹ 0.00</span>
+                      </div>
+                      <div style="display:flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-weight: bold; font-size: 16px; color: var(--accent);">
+                          <span>Grand Total:</span>
+                          <span id="inv_grand_total">₹ 0.00</span>
+                      </div>
+                  </div>
+              </div>
+          </div>
+          <div class="form-group">
+            <label>Ref / Invoice No.</label>
+            <input type="text" id="v_ref" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Due Date</label>
+            <input type="date" id="v_due" class="form-control">
+          </div>
+          <div class="form-group full">
+            <label>Description / Narration</label>
+            <input type="text" id="v_desc" class="form-control" required>
+          </div>
+        </div>
+        <div style="text-align:right; margin-top:15px">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('voucherModal')">Cancel</button>
+          <button type="submit" class="req-edit btn btn-primary">Save Voucher</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="toast-area" id="toastArea"></div>
+
+<script>
+let customers = [];
+let currentTab = 'dashboard';
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadDashboard();
+    fetchCustomersDropdown();
+});
+
+function showTab(id, el) {
+    document.querySelectorAll('.tabs').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
+    if(el) el.classList.add('active');
+    
+    currentTab = id;
+    if (id === 'dashboard') loadDashboard();
+    if (id === 'outstanding') loadOutstanding();
+}
+
+function toast(msg, type='info') {
+    const d = document.createElement('div');
+    d.className = `toast ${type}`;
+    d.innerText = msg;
+    document.getElementById('toastArea').appendChild(d);
+    setTimeout(() => {
+        d.style.animation = 'slideIn 0.3s reverse forwards';
+        setTimeout(()=>d.remove(), 300);
+    }, 4000);
+}
+
+function fmt(num) {
+    return Number(num).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// DASHBOARD
+async function loadDashboard() {
+    try {
+        const res = await fetch('/api/customers/summary');
+        const data = await res.json();
+        
+        const sc = document.getElementById('dash-stats').children;
+        sc[0].querySelector('.stat-val').innerText = `₹ ${fmt(data.total_receivable)}`;
+        sc[1].querySelector('.stat-val').innerText = data.customers_with_balance;
+        sc[2].querySelector('.stat-val').innerText = `₹ ${fmt(data.overdue_amount)}`;
+        sc[3].querySelector('.stat-val').innerText = data.avg_collection_days;
+        
+        const tbody = document.getElementById('dash-table-body');
+        if (data.parties.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No active customer balances found.</td></tr>';
+            return;
+        }
+        
+        let html = '';
+        data.parties.forEach(p => {
+            html += `
+            <tr>
+              <td>
+                <div style="font-weight:700">${p.company}</div>
+                <div style="font-size:10px;color:var(--text-muted)">${p.name}</div>
+              </td>
+              <td style="text-align:right">
+                <div class="${p.suffix==='Dr'?'bal-dr':'bal-cr'}">₹ ${fmt(Math.abs(p.balance))} ${p.suffix}</div>
+              </td>
+              <td class="ageing-cell">${p.ageing.not_due>0 ? fmt(p.ageing.not_due):'-'}</td>
+              <td class="ageing-cell">${p.ageing.days_1_30>0 ? fmt(p.ageing.days_1_30):'-'}</td>
+              <td class="ageing-cell ${p.ageing.days_31_60>0?'warn':''}">${p.ageing.days_31_60>0 ? fmt(p.ageing.days_31_60):'-'}</td>
+              <td class="ageing-cell ${p.ageing.days_61_90>0?'danger':''}">${p.ageing.days_61_90>0 ? fmt(p.ageing.days_61_90):'-'}</td>
+              <td class="ageing-cell ${p.ageing.days_90_plus>0?'danger':''}">${p.ageing.days_90_plus>0 ? fmt(p.ageing.days_90_plus):'-'}</td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    } catch (e) {
+        toast('Error loading dashboard', 'err');
+    }
+}
+
+// CUSTOMERS
+async function loadCustomers() {
+    const res = await fetch('/api/customers');
+    customers = await res.json();
+    const tbody = document.getElementById('customers-table-body');
+    if (customers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No customers yet.</td></tr>';
+        return;
+    }
+    let html = '';
+    customers.forEach(c => {
+        html += `
+        <tr>
+          <td style="font-weight:600">${c.company}</td>
+          <td>${c.name}</td>
+          <td>${c.city || '-'} / ${c.state || '-'}</td>
+          <td>${c.credit_days}</td>
+          <td>₹ ${fmt(c.credit_limit)}</td>
+          <td style="text-align:right" class="${c.outstanding_balance>=0?'bal-dr':'bal-cr'}">
+             ₹ ${fmt(Math.abs(c.outstanding_balance))} ${c.outstanding_balance>=0?'Dr':'Cr'}
+          </td>
+          <td style="text-align:center">
+             <button class="req-edit btn btn-ghost btn-sm" onclick="editCustomer('${c.id}')">Edit</button>
+             <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteCustomer('${c.id}')">Del</button>
+          </td>
+        </tr>`;
+    });
+    tbody.innerHTML = html;
+}
+
+function openCustomerModal() {
+    document.getElementById('customerForm').reset();
+    document.getElementById('c_id').value = '';
+    document.getElementById('c_opening_grp').style.display = 'block'; // Only on create
+    document.getElementById('customerModalTitle').innerText = 'Add Customer';
+    openModal('customerModal');
+}
+
+function editCustomer(id) {
+    const c = customers.find(x => x.id === id);
+    if(!c) return;
+    document.getElementById('c_id').value = c.id;
+    document.getElementById('c_company').value = c.company;
+    document.getElementById('c_name').value = c.name;
+    document.getElementById('c_email').value = c.email || '';
+    document.getElementById('c_phone').value = c.phone || '';
+    document.getElementById('c_address').value = c.address || '';
+    document.getElementById('c_city').value = c.city || '';
+    document.getElementById('c_state').value = c.state || '';
+    document.getElementById('c_gstin').value = c.gstin || '';
+    document.getElementById('c_credit_days').value = c.credit_days;
+    document.getElementById('c_credit_limit').value = c.credit_limit;
+    
+    document.getElementById('c_opening_grp').style.display = 'none'; // hidden on edit
+    document.getElementById('customerModalTitle').innerText = 'Edit Customer';
+    openModal('customerModal');
+}
+
+async function saveCustomer(e) {
+    e.preventDefault();
+    const id = document.getElementById('c_id').value;
+    const payload = {
+        company: document.getElementById('c_company').value,
+        name: document.getElementById('c_name').value,
+        email: document.getElementById('c_email').value,
+        phone: document.getElementById('c_phone').value,
+        address: document.getElementById('c_address').value,
+        city: document.getElementById('c_city').value,
+        state: document.getElementById('c_state').value,
+        gstin: document.getElementById('c_gstin').value,
+        credit_days: parseInt(document.getElementById('c_credit_days').value),
+        credit_limit: parseFloat(document.getElementById('c_credit_limit').value),
+    };
+    
+    if(!id) {
+        payload.opening_balance = parseFloat(document.getElementById('c_opening').value || 0);
+    }
+    
+    const m = id ? 'PUT' : 'POST';
+    const u = id ? '/api/customers/'+id : '/api/customers';
+    
+    try {
+        const r = await fetch(u, {
+            method: m,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const res = await r.json();
+        if(!r.ok) throw new Error(res.error || 'Failed');
+        toast('Customer saved successfully', 'ok');
+        closeModal('customerModal');
+        loadCustomers();
+        fetchCustomersDropdown();
+    } catch(err) {
+        toast(err.message, 'err');
+    }
+}
+
+async function deleteCustomer(id) {
+    if(!confirm('Are you sure you want to delete this customer?')) return;
+    try {
+        const r = await fetch('/api/customers/'+id, {method:'DELETE'});
+        const res = await r.json();
+        if(!r.ok) throw new Error(res.error || 'Failed to delete');
+        toast('Customer deleted', 'ok');
+        loadCustomers();
+        fetchCustomersDropdown();
+    } catch(err) {
+        toast(err.message, 'err');
+    }
+}
+
+// LEDGERS & VOUCHERS
+async function fetchCustomersDropdown() {
+    const res = await fetch('/api/customers');
+    const data = await res.json();
+    let html = '<option value="">Select Customer...</option>';
+    let htmlAll = '<option value="ALL">All Customers</option>';
+    data.forEach(c => {
+        const opt = `<option value="${c.id}">${c.company} (${c.name})</option>`;
+        html += opt;
+        htmlAll += opt;
+    });
+    document.getElementById('ledger-customer-select').innerHTML = html;
+    document.getElementById('os-customer-select').innerHTML = htmlAll;
+}
+
+async function loadLedger() {
+    const cid = document.getElementById('ledger-customer-select').value;
+    if(!cid) {
+        document.getElementById('ledger-content').style.display = 'none';
+        document.getElementById('btn-add-voucher').style.display = 'none';
+        document.getElementById('btn-pdf').style.display = 'none';
+        return;
+    }
+    document.getElementById('ledger-content').style.display = 'block';
+    document.getElementById('btn-add-voucher').style.display = 'inline-block';
+    document.getElementById('btn-pdf').style.display = 'inline-block';
+    
+    const r = await fetch('/api/customers/'+cid+'/ledger');
+    const data = await r.json();
+    
+    document.getElementById('ledg-closing').innerText = `₹ ${fmt(Math.abs(data.closing_balance))} ${data.balance_suffix}`;
+    const tbody = document.getElementById('ledger-table-body');
+    if (data.entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">No transactions found.</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    data.entries.forEach(e => {
+        const dr = e.dr_cr === 'DR' ? `₹ ${fmt(e.amount_inr)}` : '';
+        const cr = e.dr_cr === 'CR' ? `₹ ${fmt(e.amount_inr)}` : '';
+        const tclass = e.entry_type; // to add specific colors
+        
+        let actions = '';
+        // Allow edit/delete if not OPENING
+        if(e.entry_type !== 'OPENING') {
+            actions = `<button class="req-edit btn btn-ghost btn-sm" onclick="editVoucher('${e.id}')">Edit</button>
+                       <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteVoucher('${e.id}')">Del</button>`;
+        }
+        if(e.entry_type === 'INVOICE' && e.ref_number) {
+            actions = `<button class="btn btn-primary btn-sm" onclick="printInvoice('${e.ref_number}')" style="margin-right:5px;">Print</button>` + actions;
+        }
+        
+        html += `
+        <tr class="row-${tclass}">
+          <td>${e.entry_date}</td>
+          <td><span class="badge-${e.dr_cr.toLowerCase()}" style="padding:2px 6px;border-radius:4px;font-size:10px">${e.entry_type}</span></td>
+          <td>${e.ref_number || '-'}</td>
+          <td style="font-size:11px">${e.description}</td>
+          <td style="text-align:right;color:var(--accent)">${dr}</td>
+          <td style="text-align:right;color:var(--red)">${cr}</td>
+          <td style="text-align:right;font-weight:700">₹ ${fmt(Math.abs(e.running_balance))} ${e.balance_suffix}</td>
+          <td style="text-align:center">${actions}</td>
+        </tr>`;
+    });
+    tbody.innerHTML = html;
+}
+
+let activeEntries = [];
+async function editVoucher(eid) {
+    const cid = document.getElementById('ledger-customer-select').value;
+    const r = await fetch('/api/customers/'+cid+'/ledger');
+    const data = await r.json();
+    const e = data.entries.find(x => x.id === eid);
+    if(!e) return;
+    
+    if (e.entry_type === 'INVOICE') {
+        window.location.href = `/sales-invoice?edit_id=${e.id}`;
+        return;
+    }
+    
+    document.getElementById('voucherForm').reset();
+    document.getElementById('v_id').value = e.id;
+    document.getElementById('v_type').value = e.entry_type;
+    // Disable type change on edit
+    document.getElementById('v_type').disabled = true;
+    
+    vTypeChange();
+    if(e.entry_type === 'ADJUSTMENT') {
+        document.getElementById('v_drcr').value = e.dr_cr;
+    }
+    
+    document.getElementById('v_date').value = e.entry_date;
+    document.getElementById('v_amount').value = e.amount_inr;
+    document.getElementById('v_ref').value = e.ref_number || '';
+    document.getElementById('v_due').value = e.due_date || '';
+    document.getElementById('v_desc').value = e.description || '';
+    
+    document.getElementById('voucherModalTitle').innerText = 'Edit Voucher';
+    openModal('voucherModal');
+}
+
+function openVoucherModal() {
+    document.getElementById('voucherForm').reset();
+    document.getElementById('v_id').value = '';
+    document.getElementById('v_type').disabled = false;
+    document.getElementById('v_date').value = new Date().toISOString().split('T')[0];
+    vTypeChange();
+    document.getElementById('voucherModalTitle').innerText = 'Add Voucher';
+    openModal('voucherModal');
+}
+
+let allItems = [];
+
+async function fetchItemsForDropdown() {
+    if(allItems.length > 0) return;
+    try {
+        const r = await fetch('/api/items');
+        const d = await r.json();
+        allItems = d;
+    } catch(e) { console.error(e); }
+}
+
+function vTypeChange() {
+    const t = document.getElementById('v_type').value;
+    document.getElementById('v_drcr_grp').style.display = t === 'ADJUSTMENT' ? 'block' : 'none';
+    
+    if(t === 'INVOICE') {
+        document.getElementById('v_amount_grp').style.display = 'none';
+        document.getElementById('v_amount').removeAttribute('required');
+        document.getElementById('v_invoice_grid').style.display = 'block';
+        if(document.getElementById('invoice-items-tbody').children.length === 0) {
+            addInvoiceRow();
+        }
+    } else {
+        document.getElementById('v_amount_grp').style.display = 'block';
+        document.getElementById('v_amount').setAttribute('required', 'true');
+        document.getElementById('v_invoice_grid').style.display = 'none';
+    }
+}
+
+function addInvoiceRow() {
+    fetchItemsForDropdown();
+    const tbody = document.getElementById('invoice-items-tbody');
+    const tr = document.createElement('tr');
+    tr.className = 'inv-row';
+    
+    let opts = '<option value="">Select Item...</option>';
+    allItems.forEach(i => {
+        opts += `<option value="${i.id}" data-price="${i.default_price_usd}">${i.name}</option>`;
+    });
+    
+    tr.innerHTML = `
+        <td style="padding: 5px;"><select class="form-control inv-item-select" onchange="invItemChanged(this)" required>${opts}</select></td>
+        <td style="padding: 5px;"><input type="text" class="form-control inv-desc"></td>
+        <td style="padding: 5px;"><input type="number" class="form-control inv-qty" value="1" step="0.01" min="0.01" oninput="calcInvoiceTotals()" required></td>
+        <td style="padding: 5px;"><input type="number" class="form-control inv-price" value="0" step="0.01" min="0" oninput="calcInvoiceTotals()" required></td>
+        <td style="padding: 5px; text-align: right; vertical-align: middle;"><span class="inv-line-total">0.00</span></td>
+        <td style="padding: 5px; text-align: center; vertical-align: middle;"><button type="button" class="btn btn-ghost btn-sm" style="color:var(--red); padding: 4px;" onclick="this.closest('tr').remove(); calcInvoiceTotals();">X</button></td>
+    `;
+    tbody.appendChild(tr);
+    calcInvoiceTotals();
+}
+
+function invItemChanged(sel) {
+    const opt = sel.options[sel.selectedIndex];
+    if(opt && opt.value) {
+        const price = parseFloat(opt.getAttribute('data-price')) || 0;
+        const tr = sel.closest('tr');
+        tr.querySelector('.inv-price').value = price;
+        calcInvoiceTotals();
+    }
+}
+
+function calcInvoiceTotals() {
+    let subtotal = 0;
+    document.querySelectorAll('.inv-row').forEach(tr => {
+        const q = parseFloat(tr.querySelector('.inv-qty').value) || 0;
+        const p = parseFloat(tr.querySelector('.inv-price').value) || 0;
+        const tot = q * p;
+        tr.querySelector('.inv-line-total').innerText = fmt(tot);
+        subtotal += tot;
+    });
+    
+    const disc = parseFloat(document.getElementById('inv_discount').value) || 0;
+    const taxRate = parseFloat(document.getElementById('inv_tax_rate').value) || 0;
+    
+    let taxAmt = (subtotal - disc) * (taxRate / 100);
+    if(taxAmt < 0) taxAmt = 0;
+    
+    const grand = subtotal - disc + taxAmt;
+    
+    document.getElementById('inv_subtotal').innerText = '₹ ' + fmt(subtotal);
+    document.getElementById('inv_tax_amount').innerText = '₹ ' + fmt(taxAmt);
+    document.getElementById('inv_grand_total').innerText = '₹ ' + fmt(grand);
+}
+
+async function saveVoucher(e) {
+    e.preventDefault();
+    const cid = document.getElementById('ledger-customer-select').value;
+    if(!cid) return;
+    
+    const id = document.getElementById('v_id').value;
+    let payload = {
+        entry_type: document.getElementById('v_type').value,
+        entry_date: document.getElementById('v_date').value,
+        amount_inr: parseFloat(document.getElementById('v_amount').value) || 0,
+        ref_number: document.getElementById('v_ref').value,
+        due_date: document.getElementById('v_due').value,
+        description: document.getElementById('v_desc').value,
+    };
+    
+    if (payload.entry_type === 'INVOICE') {
+        const items = [];
+        document.querySelectorAll('.inv-row').forEach(tr => {
+            items.push({
+                item_id: tr.querySelector('.inv-item-select').value,
+                description: tr.querySelector('.inv-desc').value,
+                qty: parseFloat(tr.querySelector('.inv-qty').value) || 0,
+                unit_price: parseFloat(tr.querySelector('.inv-price').value) || 0
+            });
+        });
+        payload.items = items;
+        payload.tax_rate = parseFloat(document.getElementById('inv_tax_rate').value) || 0;
+        payload.discount_amount = parseFloat(document.getElementById('inv_discount').value) || 0;
+    }
+    if (payload.entry_type === 'INVOICE' || payload.entry_type === 'DEBIT_NOTE') {
+        payload.dr_cr = 'DR';
+    } else if (payload.entry_type === 'PAYMENT' || payload.entry_type === 'CREDIT_NOTE') {
+        payload.dr_cr = 'CR';
+    } else if (payload.entry_type === 'ADJUSTMENT') {
+        payload.dr_cr = document.getElementById('v_drcr').value;
+    }
+    
+    const m = id ? 'PUT' : 'POST';
+    const u = id ? '/api/ledger/customer/'+id : '/api/customers/'+cid+'/ledger';
+    
+    try {
+        const r = await fetch(u, {
+            method: m,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const res = await r.json();
+        if(!r.ok) throw new Error(res.error || 'Failed');
+        toast('Voucher saved successfully', 'ok');
+        closeModal('voucherModal');
+        loadLedger();
+        loadDashboard(); // Refresh background stats
+    } catch(err) {
+        toast(err.message, 'err');
+    }
+}
+
+async function deleteVoucher(eid) {
+    if(!confirm('Are you sure you want to delete this voucher?')) return;
+    try {
+        const r = await fetch('/api/ledger/customer/'+eid, {method:'DELETE'});
+        const res = await r.json();
+        if(!r.ok) throw new Error(res.error || 'Failed to delete');
+        toast('Voucher deleted', 'ok');
+        loadLedger();
+    } catch(err) {
+        toast(err.message, 'err');
+    }
+}
+
+function downloadLedgerPDF() {
+    const cid = document.getElementById('ledger-customer-select').value;
+    if(!cid) return;
+    window.open('/api/customers/'+cid+'/ledger/pdf', '_blank');
+}
+
+// OUTSTANDING
+async function loadOutstanding() {
+    const cid = document.getElementById('os-customer-select').value;
+    const u = cid === 'ALL' ? '/api/customers/outstanding' : '/api/customers/'+cid+'/outstanding';
+    
+    try {
+        const r = await fetch(u);
+        const data = await r.json();
+        const tbody = document.getElementById('os-table-body');
+        
+        let invoices = [];
+        
+        if (cid === 'ALL') {
+            document.getElementById('os-bucket-title').innerText = 'Party Outstanding Summary';
+            if (data.parties.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center">No outstanding balances.</td></tr>';
+                return;
+            }
+            let html = '';
+            data.parties.forEach(p => {
+                html += `<tr>
+                  <td>-</td>
+                  <td style="font-weight:600">${p.company}</td>
+                  <td>-</td>
+                  <td style="text-align:right">-</td>
+                  <td style="text-align:right;font-weight:700">
+                    ${p.total_due > 0 ? `<span style="color:var(--red)">₹ ${fmt(p.total_due)}</span>` : `<span style="color:var(--accent)">Advance: ₹ ${fmt(p.total_advance)}</span>`}
+                  </td>
+                  <td style="text-align:right">
+                    <span style="font-size:10px;color:var(--text-muted)">
+                     ${p.total_due > 0 ? `[ Not Due: ${fmt(p.not_due)} | 1-30: ${fmt(p.days_1_30)} | 31-60: ${fmt(p.days_31_60)} | 61-90: ${fmt(p.days_61_90)} | 91+: ${fmt(p.days_90_plus)} ]` : '[ Fully Paid ]'}
+                    </span>
+                  </td>
+                  <td></td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        } else {
+            document.getElementById('os-bucket-title').innerText = 'Itemized Unpaid Invoices';
+            ['0_30', '31_60', '61_90', '91_plus'].forEach(k => {
+                data.buckets[k].forEach(inv => invoices.push(inv));
+            });
+            
+            if (invoices.length === 0) {
+                const advText = data.total_advance > 0 ? `<br><span style="color:var(--accent)">Advance Received: ₹ ${fmt(data.total_advance)}</span>` : '';
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center">No unpaid invoices for this customer.${advText}</td></tr>`;
+                return;
+            }
+            
+            invoices.sort((a,b) => new Date(a.date) - new Date(b.date));
+            
+            let html = '';
+            invoices.forEach(inv => {
+                const isOver = inv.days_overdue > 0;
+                html += `<tr>
+                  <td>${inv.date}</td>
+                  <td>${inv.ref || '-'}</td>
+                  <td style="${isOver?'color:var(--red)':''}">${inv.due_date || '-'}</td>
+                  <td style="text-align:right">₹ ${fmt(inv.amount)}</td>
+                  <td style="text-align:right;font-weight:700;color:var(--red)">₹ ${fmt(inv.remaining)}</td>
+                  <td style="text-align:right">
+                     <span class="badge-${isOver?'cr':'dr'}" style="padding:2px 6px;border-radius:4px;font-size:10px">
+                        ${isOver ? inv.days_overdue + ' Days Overdue' : 'Not Due'}
+                     </span>
+                  </td>
+                  <td style="text-align:center">
+                     <button class="btn btn-primary btn-sm" onclick="printInvoice('${inv.ref}')">Print</button>
+                  </td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+    } catch(err) {
+        toast('Failed to load outstanding data', 'err');
+    }
+}
+  // Print Invoice Script
+  function printInvoice(invoiceNo) {
+      if (!invoiceNo || invoiceNo === '-') {
+          toast('No invoice number available to print.', 'error');
+          return;
+      }
+      const cid = currentTab === 'outstanding' ? document.getElementById('os-customer-select').value : document.getElementById('ledger-customer-select').value;
+      if (!cid || cid === 'ALL') {
+          toast('Please select a specific customer first.', 'error');
+          return;
+      }
+      window.open(`/api/customers/${cid}/invoices/${invoiceNo}/pdf`, '_blank');
+  }
+
+  // Navigation Handler for Unified ERP Sidebar
+  document.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get('tab');
+    if (tab) {
+      const tabLink = document.querySelector(`.sb-item[onclick*="${tab}"]`);
+      if (tabLink) showTab(tab, tabLink);
+    }
+  });
+</script>
+</body>
+</html>

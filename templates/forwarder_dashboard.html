@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Forwarder Dashboard — Purchase Order</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+{% include 'shared_styles.css' %}
+/* Override sidebar selection */
+.sb-nav .active { background: linear-gradient(90deg, rgba(6, 182, 212, 0.15) 0%, transparent 100%); border-left-color: var(--cyan); color: #fff; text-shadow: 0 0 10px rgba(6, 182, 212, 0.5); }
+
+:root{
+  --bg:#0b0e17;--bg2:#111520;--bg3:#161c2e;--bg4:#1c2338;
+  --border:#1f2a42;--border2:#2a3655;
+  --text:#c8d0e8;--text2:#6b7499;--text3:#3d4a6e;
+  --accent:#22c55e;--accent2:#3b82f6;--accent3:#a78bfa;--accent4:#f59e0b;
+  --orange:#f97316;--red:#ef4444;--cyan:#06b6d4;
+  --font:'JetBrains Mono','Fira Mono','Courier New',monospace;
+  --font-cn:'Noto Sans SC','Microsoft YaHei',sans-serif;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.3);
+  --shadow-md:0 4px 12px rgba(0,0,0,.4);
+  --shadow-lg:0 8px 24px rgba(0,0,0,.5);
+  color-scheme: dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;min-height:100vh}
+
+.layout{display:flex;min-height:100vh}
+.main{flex:1;padding:32px 40px;overflow-x:hidden}
+.top-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px}
+.back-link{display:flex;align-items:center;gap:8px;color:var(--text2);text-decoration:none;font-weight:700;font-size:12px;transition:color .2s}
+.back-link:hover{color:var(--accent2)}
+
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;gap:20px;flex-wrap:wrap}
+.page-title{font-size:28px;font-weight:900;color:#fff;letter-spacing:-.03em}
+.page-title span{background:linear-gradient(135deg,var(--accent2),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.page-sub{font-size:12px;color:var(--text2);margin-top:5px;letter-spacing:.02em}
+
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:8px;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;border:none;transition:all .2s cubic-bezier(.4,.0,.2,1);letter-spacing:.03em;box-shadow:var(--shadow-sm)}
+.btn:active{transform:scale(.98)}
+.btn-primary{background:linear-gradient(135deg,var(--accent2),#2563eb);color:#fff;box-shadow:0 4px 12px rgba(59,130,246,.3)}
+.btn-primary:hover{box-shadow:0 6px 16px rgba(59,130,246,.4);transform:translateY(-2px)}
+.btn-green{background:linear-gradient(135deg,var(--accent),#16a34a);color:#fff}
+.btn-green:hover{transform:translateY(-2px)}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2)}
+.btn-ghost:hover{color:var(--text);border-color:var(--accent2);background:rgba(59,130,246,.08)}
+.btn-red{background:linear-gradient(135deg,var(--red),#dc2626);color:#fff}
+.btn-red:hover{transform:translateY(-2px)}
+.btn-sm{padding:7px 13px;font-size:11px}
+.btn-xs{padding:4px 10px;font-size:10px}
+
+/* ── sync info banner ── */
+.sync-bar{background:linear-gradient(135deg,rgba(6,182,212,.07),rgba(59,130,246,.04));border:1px solid rgba(6,182,212,.22);border-radius:10px;padding:14px 20px;margin-bottom:22px;display:flex;align-items:center;gap:14px}
+.sync-icon{font-size:18px;flex-shrink:0}
+.sync-text .sync-title{font-size:11px;font-weight:800;color:var(--cyan);letter-spacing:.06em;text-transform:uppercase}
+.sync-text .sync-sub{font-size:11px;color:var(--text2);margin-top:3px;line-height:1.5}
+
+/* ── alert ── */
+.alert-banner{display:none;padding:12px 20px;border-radius:8px;margin-bottom:22px;font-weight:700;cursor:pointer;align-items:center;justify-content:space-between}
+.alert-banner.show{display:flex}
+.alert-banner.warn{background:rgba(239,68,68,.1);border:1px solid var(--red);color:var(--red)}
+
+/* ── stats ── */
+.stats-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:28px}
+.stat-card{background:linear-gradient(135deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:10px;padding:18px 20px;transition:all .25s;box-shadow:var(--shadow-sm)}
+.stat-card:hover{border-color:var(--border2);box-shadow:var(--shadow-md);transform:translateY(-4px)}
+.stat-val{font-size:28px;font-weight:900;color:#fff;letter-spacing:-.02em}
+.stat-label{font-size:10px;color:var(--text2);letter-spacing:.08em;margin-top:6px;text-transform:uppercase;font-weight:700}
+.stat-card.blue .stat-val{color:var(--accent2)}
+.stat-card.green .stat-val{color:var(--accent)}
+.stat-card.red .stat-val{color:var(--red)}
+.stat-card.orange .stat-val{color:var(--orange)}
+.stat-card.gray .stat-val{color:var(--text2)}
+
+/* ── pending POs panel ── */
+.pending-section{background:linear-gradient(135deg,var(--bg2),var(--bg3));border:1px solid rgba(245,158,11,.3);border-radius:12px;margin-bottom:26px;overflow:hidden;box-shadow:var(--shadow-md)}
+.pending-header{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;border-bottom:1px solid rgba(245,158,11,.18);background:rgba(245,158,11,.04);gap:12px;flex-wrap:wrap}
+.pending-title{font-size:12px;font-weight:800;color:var(--accent4);letter-spacing:.05em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.pending-hint{font-size:11px;color:var(--text2)}
+.pending-row{display:flex;align-items:center;gap:16px;padding:13px 22px;border-bottom:1px solid rgba(255,255,255,.03);transition:background .15s}
+.pending-row:last-child{border-bottom:none}
+.pending-row:hover{background:rgba(245,158,11,.04)}
+.pending-po-num{font-size:14px;font-weight:900;color:#fff;min-width:110px}
+.pending-meta{flex:1;display:flex;gap:20px;flex-wrap:wrap}
+.pm{font-size:11px;color:var(--text2)}.pm span{color:var(--text);font-weight:700}
+.pending-empty{padding:28px;text-align:center;font-size:12px;color:var(--text3);font-style:italic}
+
+/* ── table ── */
+.table-wrap{background:linear-gradient(135deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow-md)}
+.table-header{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border);background:linear-gradient(90deg,rgba(59,130,246,.04),transparent)}
+.table-title{font-size:13px;font-weight:800;color:#fff;letter-spacing:.04em;text-transform:uppercase}
+table{width:100%;border-collapse:collapse}
+th{padding:12px 16px;text-align:left;font-size:10px;letter-spacing:.1em;color:var(--text2);text-transform:uppercase;border-bottom:1px solid var(--border);background:rgba(0,0,0,.2);font-weight:800;cursor:pointer;white-space:nowrap}
+th:hover{background:rgba(59,130,246,.1);color:#fff}
+td{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.03);color:var(--text);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(59,130,246,.04)}
+tr.overdue{background:rgba(239,68,68,.05)}
+tr.soon{background:rgba(249,115,22,.05)}
+tr.delivered{background:rgba(34,197,94,.05)}
+.empty-td{text-align:center;padding:40px;color:var(--text3);font-style:italic}
+
+/* ── badges ── */
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:4px;font-size:10px;letter-spacing:.05em;font-weight:800;text-transform:uppercase}
+.badge-green{background:rgba(34,197,94,.15);color:var(--accent);border:1px solid rgba(34,197,94,.4)}
+.badge-blue{background:rgba(59,130,246,.15);color:var(--accent2);border:1px solid rgba(59,130,246,.4)}
+.badge-orange{background:rgba(249,115,22,.15);color:var(--orange);border:1px solid rgba(249,115,22,.4)}
+.badge-red{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.4)}
+.badge-gray{background:rgba(107,116,153,.15);color:var(--text2);border:1px solid var(--border2)}
+.badge-purple{background:rgba(167,139,250,.15);color:var(--accent3);border:1px solid rgba(167,139,250,.4)}
+.badge-yellow{background:rgba(245,158,11,.15);color:var(--accent4);border:1px solid rgba(245,158,11,.4)}
+.badge-cyan{background:rgba(6,182,212,.15);color:var(--cyan);border:1px solid rgba(6,182,212,.4)}
+
+/* ── PO chips on table rows ── */
+.po-chips{display:flex;gap:4px;flex-wrap:wrap}
+.po-chip{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--border2);border-radius:4px;padding:2px 6px;font-size:9px;font-weight:800;color:var(--text2);letter-spacing:.04em}
+.po-chip.active{border-color:rgba(34,197,94,.4);color:var(--accent);background:rgba(34,197,94,.07)}
+.po-chip .dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+
+/* ── modal ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(2px);z-index:100;display:none;align-items:center;justify-content:center;padding:40px 20px;overflow-y:auto}
+.overlay.open{display:flex}
+.modal{background:linear-gradient(135deg,var(--bg2),var(--bg3));border:1px solid var(--border2);border-radius:14px;width:100%;max-width:680px;padding:32px;position:relative;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.6);animation:modalIn .3s cubic-bezier(.4,.0,.2,1)}
+@keyframes modalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+.modal-title{font-size:18px;font-weight:900;color:#fff;margin-bottom:20px;letter-spacing:-.02em}
+.modal-close{position:absolute;top:18px;right:18px;background:none;border:none;color:var(--text2);cursor:pointer;font-size:20px;line-height:1;transition:all .2s;width:36px;height:36px;display:flex;align-items:center;justify-content:center}
+.modal-close:hover{color:#fff;background:rgba(59,130,246,.12);border-radius:8px}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:28px;padding-top:18px;border-top:1px solid var(--border)}
+
+/* ── info notice ── */
+.info-notice{background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.22);border-radius:8px;padding:11px 14px;margin-bottom:20px;display:flex;gap:10px}
+.info-notice-icon{font-size:15px;flex-shrink:0;margin-top:1px}
+.info-notice-text{font-size:11px;color:var(--cyan);line-height:1.55}
+.info-notice-text strong{color:#fff;display:block;margin-bottom:2px;font-size:12px}
+
+/* ── drawer ── */
+.drawer{position:fixed;top:0;right:-520px;width:520px;height:100vh;background:var(--bg2);border-left:1px solid var(--border);z-index:200;transition:right .3s ease;display:flex;flex-direction:column;box-shadow:var(--shadow-lg)}
+.drawer.open{right:0}
+.drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:199;display:none}
+.drawer-backdrop.show{display:block}
+.drawer-header{padding:22px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start}
+.drawer-title{font-size:16px;font-weight:900;color:#fff}
+.drawer-sub{font-size:11px;color:var(--text2);margin-top:4px}
+.drawer-body{padding:22px 24px;flex:1;overflow-y:auto}
+.drawer-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center}
+
+/* ── stepper ── */
+.stepper{position:relative;margin:12px 0 20px}
+.step{display:flex;gap:14px;align-items:flex-start;position:relative;padding-bottom:18px}
+.step:last-child{padding-bottom:0}
+.step-vline{position:absolute;left:11px;top:26px;width:2px;height:calc(100% - 12px);background:var(--border)}
+.step.completed .step-vline{background:rgba(34,197,94,.35)}
+.step.active .step-vline{background:rgba(59,130,246,.25)}
+.step:last-child .step-vline{display:none}
+.step-icon{width:24px;height:24px;border-radius:50%;border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--text2);flex-shrink:0;z-index:1;background:var(--bg2)}
+.step.active .step-icon{border-color:var(--accent2);color:var(--accent2);background:rgba(59,130,246,.14)}
+.step.completed .step-icon{border-color:var(--accent);color:var(--accent);background:rgba(34,197,94,.12)}
+.step-label{font-size:12px;font-weight:700;color:var(--text3);padding-top:3px}
+.step.active .step-label{color:#fff}
+.step.completed .step-label{color:var(--accent)}
+
+/* ── section labels inside drawer ── */
+.sec-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text2);font-weight:800;margin:22px 0 10px}
+.sec-label:first-child{margin-top:0}
+
+/* ── PO link rows in drawer ── */
+.po-link-row{display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,.15);border:1px solid var(--border);padding:10px 14px;border-radius:8px;margin-bottom:8px}
+.po-link-num{font-size:12px;font-weight:800;color:#fff}
+.po-link-meta{font-size:10px;color:var(--text2);margin-top:3px}
+
+/* ── notes ── */
+.note-entry{background:rgba(255,255,255,.025);border:1px solid var(--border);padding:11px 13px;border-radius:8px;margin-bottom:9px}
+.note-meta{font-size:10px;color:var(--text3);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.note-author-tag{border-radius:3px;padding:1px 5px;font-size:9px;font-weight:800;letter-spacing:.04em}
+.note-author-tag.user{background:rgba(59,130,246,.15);color:var(--accent2)}
+.note-author-tag.sys{background:rgba(6,182,212,.12);color:var(--cyan)}
+.note-text{font-size:12px;line-height:1.45;color:var(--text)}
+
+/* ── form ── */
+.form-grid{display:grid;gap:16px}
+.fg2{grid-template-columns:1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:7px}
+label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);font-weight:700}
+input,select,textarea{background:rgba(0,0,0,.2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:#fff;font-family:var(--font-cn),var(--font);font-size:12px;width:100%;transition:all .2s;box-shadow:inset 0 1px 2px rgba(0,0,0,.2);font-weight:600}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent2);background:rgba(59,130,246,.08);box-shadow:inset 0 1px 2px rgba(0,0,0,.2),0 0 8px rgba(59,130,246,.2)}
+select option{background:#111520;color:#fff;padding:8px}
+
+/* ── po checkbox items ── */
+.po-check-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;border:1px solid var(--border);margin-bottom:6px;background:rgba(0,0,0,.1);transition:background .15s;cursor:pointer}
+.po-check-item:hover{background:rgba(59,130,246,.06);border-color:var(--border2)}
+.po-check-item input[type=checkbox]{width:14px;height:14px;accent-color:var(--accent2);cursor:pointer;flex-shrink:0}
+.po-check-item .pc-label{flex:1;font-size:12px;color:var(--text);font-family:var(--font);letter-spacing:0;text-transform:none;font-weight:500;margin:0;cursor:pointer}
+.po-check-item .pc-status{font-size:9px;font-weight:800;padding:2px 5px;border-radius:3px;border:1px solid currentColor;flex-shrink:0}
+
+/* ── gantt ── */
+.gantt-container{margin-top:30px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px}
+
+/* ── status inline select ── */
+.status-inline{padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:11px;cursor:pointer;outline:none;font-family:var(--font);color-scheme:dark}
+
+/* ── toast ── */
+.toast-area{position:fixed;bottom:32px;right:32px;display:flex;flex-direction:column;gap:10px;z-index:9999}
+.toast{background:linear-gradient(135deg,var(--bg2),var(--bg3));border:1px solid var(--border2);border-radius:10px;padding:12px 18px;font-size:12px;animation:slideIn .3s cubic-bezier(.4,.0,.2,1);max-width:320px;box-shadow:0 8px 24px rgba(0,0,0,.5);font-weight:600}
+.toast.ok{border-left:3px solid var(--accent);color:var(--accent)}
+.toast.err{border-left:3px solid var(--red);color:var(--red)}
+.toast.info{border-left:3px solid var(--cyan);color:var(--cyan)}
+@keyframes slideIn{from{transform:translateX(400px);opacity:0}to{transform:none;opacity:1}}
+
+.search-bar{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:7px 12px;color:var(--text);font-family:var(--font);font-size:12px;width:200px;box-shadow:inset 0 1px 2px rgba(0,0,0,.2)}
+.search-bar:focus{outline:none;border-color:var(--accent2)}
+</style>
+
+    {% if 'forwarder_edit' not in user_permissions %}
+    <style> .req-edit { display: none !important; pointer-events: none !important; } </style>
+    {% endif %}
+    {% if 'forwarder_delete' not in user_permissions %}
+    <style> .req-delete { display: none !important; pointer-events: none !important; } </style>
+    {% endif %}
+    </head>
+
+<body>
+
+<div class="drawer-backdrop" id="drawerBackdrop" onclick="closeDrawer()"></div>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sb-header">
+      <div class="sb-logo">
+        <div class="sb-logo-icon">🌊</div>
+        <div>
+          <div class="sb-company">Purchase Order</div>
+          <div class="sb-tagline">Greenwave Traders</div>
+        </div>
+      </div>
+      <div class="sb-badge">v2.0 — UNIFIED</div>
+    </div>
+
+    <nav class="sb-nav">
+      <div class="sb-item" onclick="window.location.href='/?tab=dashboard'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 13h1v2H0v-2zm2-4h1v6H2V9zm2-4h1v10H4V5zm2-3h1v13H6V2zm2 5h1v8H8V7zm2 4h1v4h-1v-4zm2-2h1v6h-1V9z"/></svg>
+        Dashboard
+      </div>
+
+      {% if 'po_dashboard' in user_permissions %}
+      <div class="sb-group" style="margin-top: 15px;">TRANSACTIONS</div>
+      <div class="sb-item" onclick="window.location.href='/?tab=quotations'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h14v2L9 7v7l-2-1-2 1V7L1 3zm12 1.5H3l4 2.8v6.4l1 .5 1-.5V5.3z"/></svg>
+        Quotations
+      </div>
+      <div class="sb-item" onclick="window.location.href='/?tab=pos'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+        Purchase Orders
+      </div>
+      {% endif %}
+      {% if 'customer_books' in user_permissions %}
+      <div class="sb-item" onclick="window.location.href='/sales-invoice'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h14v2L9 7v7l-2-1-2 1V7L1 3zm12 1.5H3l4 2.8v6.4l1 .5 1-.5V5.3z"/></svg>
+        Sales Invoices
+      </div>
+      {% endif %}
+
+      {% if 'forwarder_dashboard' in user_permissions %}
+      <div class="sb-group" style="margin-top: 15px;">LOGISTICS</div>
+      <div class="sb-item active" onclick="window.location.href='/forwarder-dashboard'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+        Shipment Tracking
+      </div>
+      {% endif %}
+
+      {% if 'supplier_books' in user_permissions or 'customer_books' in user_permissions %}
+      <div class="sb-group" style="margin-top: 15px;">ACCOUNTING</div>
+      {% endif %}
+      {% if 'customer_books' in user_permissions %}
+      <div class="sb-item" onclick="window.location.href='/customer-book'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h7A1.5 1.5 0 0 1 11 2.5v3.5h.5a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H4.5A1.5 1.5 0 0 1 3 13.5V10H2.5A1.5 1.5 0 0 1 1 8.5v-6zM3.5 10v3a.5.5 0 0 0 .5.5h6.5V7.5H4.5a.5.5 0 0 0-.5.5v2H3.5zM11 7V2.5a.5.5 0 0 0-.5-.5h-7a.5.5 0 0 0-.5.5V8.5a.5.5 0 0 0 .5.5H5V7h6z"/></svg>
+        Customer Books
+      </div>
+      <div class="sb-item" style="padding-left: 36px" onclick="window.location.href='/customer-book?tab=outstanding'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+        Outstanding Ageing
+      </div>
+      {% endif %}
+
+      {% if 'supplier_books' in user_permissions %}
+      <div class="sb-item" onclick="window.location.href='/supplier-book'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h7A1.5 1.5 0 0 1 11 2.5v3.5h.5a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H4.5A1.5 1.5 0 0 1 3 13.5V10H2.5A1.5 1.5 0 0 1 1 8.5v-6zM3.5 10v3a.5.5 0 0 0 .5.5h6.5V7.5H4.5a.5.5 0 0 0-.5.5v2H3.5zM11 7V2.5a.5.5 0 0 0-.5-.5h-7a.5.5 0 0 0-.5.5V8.5a.5.5 0 0 0 .5.5H5V7h6z"/></svg>
+        Supplier Books
+      </div>
+      <div class="sb-item" style="padding-left: 36px" onclick="window.location.href='/supplier-book?tab=outstanding'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+        Outstanding Ageing
+      </div>
+      {% endif %}
+
+      {% if 'po_dashboard' in user_permissions %}
+      <div class="sb-group" style="margin-top: 15px;">MASTERS</div>
+      <div class="sb-item" onclick="window.location.href='/?tab=masters'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 6a5 5 0 0110 0H3z"/></svg>
+        All Masters
+      </div>
+      {% endif %}
+
+      {% if 'admin_rbac' in user_permissions %}
+      <div class="sb-group" style="margin-top: 15px;">SYSTEM</div>
+      <div class="sb-item" onclick="window.location.href='/admin/rbac'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zm0 14A6 6 0 118 2a6 6 0 010 12zM6.5 5h3v2h-3V5zm0 4h3v2h-3V9z"/></svg>
+        Admin Panel
+      </div>
+      {% endif %}
+    </nav>
+    <div class="sb-footer">
+      <div style="font-size:11px;color:var(--text2);display:flex;justify-content:space-between;align-items:center;">
+        <span>👤 {{ current_user.username if current_user else 'Guest' }}</span>
+        <a href="/logout" style="color:var(--accent2);text-decoration:none;font-weight:bold;">Logout</a>
+      </div>
+    </div>
+  </aside>
+<main class="main">
+
+  <div class="top-bar">
+    <a href="/po/" class="back-link">← Back to PO Management</a>
+    <div style="display:flex;gap:10px;align-items:center">
+      <input type="text" class="search-bar" id="globalSearch" placeholder="Search shipments…" oninput="renderTable()">
+      <button class="btn btn-ghost btn-sm" onclick="refresh()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">Forwarder <span>Dashboard</span></div>
+      <div class="page-sub">Shipments auto-created &amp; synced from PO form · Track, update &amp; add notes here</div>
+    </div>
+    <!-- No "New Shipment" button — shipments are driven by the PO form -->
+  </div>
+
+  <!-- Auto-sync info bar -->
+  <div class="sync-bar">
+    <div class="sync-icon">🔗</div>
+    <div class="sync-text">
+      <div class="sync-title">Auto-Sync Active</div>
+      <div class="sync-sub">
+        Shipments are <strong style="color:#fff">created automatically</strong> when you assign a Forwarder to a PO and set status to <em>Confirmed</em> or higher in the PO form.
+        Shipment status also <strong style="color:#fff">updates automatically</strong> as PO status progresses (Shipped → In Transit → Received).
+        Use this dashboard to track, update stages manually, and add notes.
+      </div>
+    </div>
+  </div>
+
+  <!-- Overdue alert -->
+  <div id="delayBanner" class="alert-banner warn" onclick="scrollToDelays()">
+    <span id="delayBannerText"></span>
+    <span>✕</span>
+  </div>
+
+  <!-- POs with forwarder but not yet linked to any shipment -->
+  <div class="pending-section" id="pendingSection" style="display:none">
+    <div class="pending-header">
+      <div class="pending-title">
+        ⏳ POs Awaiting Shipment
+        <span class="badge badge-yellow" id="pendingCount" style="font-size:9px;margin-left:4px">0</span>
+      </div>
+      <div class="pending-hint">These POs have a forwarder assigned but are not yet linked to any shipment</div>
+    </div>
+    <div id="pendingPosList"></div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="stats-bar">
+    <div class="stat-card blue"><div class="stat-val" id="stat-transit">0</div><div class="stat-label">Active Shipments</div></div>
+    <div class="stat-card green"><div class="stat-val" id="stat-week">0</div><div class="stat-label">Arriving This Week</div></div>
+    <div class="stat-card red"><div class="stat-val" id="stat-overdue">0</div><div class="stat-label">Overdue</div></div>
+    <div class="stat-card orange"><div class="stat-val" id="stat-clearance">0</div><div class="stat-label">Under Clearance</div></div>
+    <div class="stat-card gray"><div class="stat-val" id="stat-delivered">0</div><div class="stat-label">Delivered (MTD)</div></div>
+  </div>
+
+  <!-- Shipments View Toggles -->
+  <div style="display:flex; gap: 10px; margin-bottom: 20px;">
+    <button id="btn-tab-table" class="btn btn-primary" onclick="switchTab('table')">📇 Active Shipments</button>
+    <button id="btn-tab-planner" class="btn btn-ghost" onclick="switchTab('planner')">📅 Arrival Planner</button>
+  </div>
+
+  <!-- Shipments table -->
+  <div id="view-table" class="table-wrap">
+    <div class="table-header">
+      <div class="table-title">Active Shipments</div>
+      <select id="filterStatus" onchange="renderTable()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;color:var(--text);font-family:var(--font);font-size:11px;cursor:pointer;color-scheme:dark">
+        <option value="">All Statuses</option>
+        <option value="With Forwarder">With Forwarder</option>
+        <option value="Shipped">Shipped</option>
+        <option value="In Transit">In Transit</option>
+        <option value="Arrived">Arrived</option>
+        <option value="Under Clearance">Under Clearance</option>
+        <option value="Delivered">Delivered</option>
+      </select>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th onclick="sortTable('description')">Label / Ref ↕</th>
+          <th onclick="sortTable('forwarder_name')">Forwarder ↕</th>
+          <th>Linked POs</th>
+          <th onclick="sortTable('departure_date')">Departure ↕</th>
+          <th onclick="sortTable('expected_arrival')">Exp. Arrival ↕</th>
+          <th onclick="sortTable('days_until')">Countdown ↕</th>
+          <th onclick="sortTable('status')">Stage ↕</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody id="shipments-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Arrival Planner View -->
+  <div id="view-planner" style="display:none; margin-bottom: 30px;">
+    <div id="arrival-planner-container" style="display:flex; flex-direction:column; gap: 20px;"></div>
+  </div>
+
+  <!-- Gantt -->
+  <div class="gantt-container">
+    <div class="table-title" style="margin-bottom:20px">Shipment Timeline (Next 60 Days)</div>
+    <div style="height:300px;position:relative"><canvas id="shipmentGantt"></canvas></div>
+  </div>
+
+  <!-- Forwarder performance -->
+  <div class="table-wrap" style="margin-top:30px">
+    <div class="table-header"><div class="table-title">Forwarder Performance</div></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Forwarder</th>
+          <th>Active</th>
+          <th>Total</th>
+          <th>Avg. Transit</th>
+          <th>On-Time %</th>
+          <th>Current Delays</th>
+        </tr>
+      </thead>
+      <tbody id="performance-tbody"></tbody>
+    </table>
+  </div>
+
+</main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     EDIT SHIPMENT MODAL  (update only — no manual creation)
+═══════════════════════════════════════════════════════════════ -->
+<div class="overlay" id="shipmentOverlay">
+  <div class="modal">
+    <div class="modal-title">✏ Edit Shipment</div>
+    <button class="modal-close" onclick="closeModal('shipmentOverlay')">✕</button>
+
+    <div class="info-notice">
+      <div class="info-notice-icon">ℹ️</div>
+      <div class="info-notice-text">
+        <strong>Shipment is auto-created from the PO form</strong>
+        Update booking ref, dates, status and linked POs here. To create a new shipment, assign a Forwarder to a PO and save it as Confirmed in the PO form.
+      </div>
+    </div>
+
+    <form id="shipmentForm" onsubmit="saveShipment(event)">
+      <input type="hidden" id="shipmentId">
+      <div class="form-grid">
+        <div class="fg2 form-grid">
+          <div class="form-group">
+            <label>Forwarder *</label>
+            <select id="s_forwarder_id" required></select>
+          </div>
+          <div class="form-group">
+            <label>Booking Reference</label>
+            <input type="text" id="s_booking_ref" placeholder="BL / HBL / WhatsApp ref…">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Shipment Label / Description</label>
+          <input type="text" id="s_description" placeholder="e.g. Diwali Batch 1">
+        </div>
+        <div class="fg2 form-grid">
+          <div class="form-group">
+            <label>Departure Date (China)</label>
+            <input type="date" id="s_departure_date">
+          </div>
+          <div class="form-group">
+            <label>Expected Arrival (India)</label>
+            <input type="date" id="s_expected_arrival">
+          </div>
+        </div>
+        <div class="fg2 form-grid">
+          <div class="form-group">
+            <label>Current Status</label>
+            <select id="s_status">
+              <option value="With Forwarder">With Forwarder</option>
+              <option value="Shipped">Shipped</option>
+              <option value="In Transit">In Transit</option>
+              <option value="Arrived">Arrived</option>
+              <option value="Under Clearance">Under Clearance</option>
+              <option value="Delivered">Delivered</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Actual Arrival <span style="font-size:9px;color:var(--text3)">(if delivered)</span></label>
+            <input type="date" id="s_actual_arrival">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Linked POs <span style="font-size:10px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--text3)">(check = linked)</span></label>
+          <div id="po-selector" style="max-height:160px;overflow-y:auto;border:1px solid var(--border2);padding:10px;border-radius:8px;background:rgba(0,0,0,.1)"></div>
+        </div>
+        <div class="form-group">
+          <label>Add Note <span style="font-size:10px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--text3)">(optional)</span></label>
+          <textarea id="s_notes" placeholder="e.g. Booking confirmed, BL will be shared by forwarder…" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('shipmentOverlay')">Cancel</button>
+        <button type="submit" class="req-edit btn btn-primary">💾 Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     SHIPMENT DETAIL DRAWER
+═══════════════════════════════════════════════════════════════ -->
+<div class="drawer" id="shipmentDrawer">
+  <div class="drawer-header">
+    <div>
+      <div class="drawer-title" id="d_title">Shipment</div>
+      <div class="drawer-sub" id="d_sub">Forwarder · Ref</div>
+    </div>
+    <button class="modal-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body">
+
+    <div class="sec-label">Shipment Stage</div>
+    <div id="statusStepper" class="stepper"></div>
+
+    <div class="sec-label">Linked Purchase Orders</div>
+    <div id="linked-pos-list"></div>
+
+    <div class="sec-label">Activity &amp; Notes</div>
+    <div id="notes-log"></div>
+    <div class="form-group" style="margin-top:12px">
+      <textarea id="new-note" placeholder="Add a note (WhatsApp update, customs info, delay reason…)" rows="2"></textarea>
+      <button class="req-edit btn btn-primary btn-sm" style="margin-top:8px;align-self:flex-start" onclick="addNote()">+ Add Note</button>
+    </div>
+
+  </div>
+  <div class="drawer-footer">
+    <button class="req-edit btn btn-ghost btn-sm" onclick="editCurrentShipment()">✏ Edit</button>
+    <button class="btn btn-green btn-sm" id="btn-delivered" onclick="markAsDelivered()">✓ Mark Delivered</button>
+    <div style="flex:1"></div>
+    <button class="btn btn-red btn-sm" onclick="deleteCurrentShipment()">🗑</button>
+  </div>
+</div>
+
+<div class="toast-area" id="toastArea"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let shipments = [], forwarders = [], allPOs = [];
+let currentShipment = null;
+let sortField = 'expected_arrival', sortOrder = 'asc';
+let ganttChart = null;
+
+const STAGES = ["With Forwarder","Shipped","In Transit","Arrived","Under Clearance","Delivered"];
+
+const STATUS_BADGE = {
+  Draft:'badge-yellow', Confirmed:'badge-purple', Shipped:'badge-cyan',
+  'In Transit':'badge-orange', Received:'badge-green', Cancelled:'badge-red'
+};
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  await Promise.all([fetchForwarders(), fetchAllPOs()]);
+  await refresh();
+}
+
+async function refresh() {
+  await Promise.all([fetchStats(), fetchShipments(), fetchAllPOs()]);
+  renderPendingPOs();
+  // Clear planner cache on refresh
+  activeItemsData = null;
+  if (document.getElementById('view-planner').style.display === 'block') {
+    renderArrivalPlanner();
+  }
+}
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
+async function fetchForwarders() {
+  const r = await fetch('/api/forwarders');
+  forwarders = await r.json();
+  const sel = document.getElementById('s_forwarder_id');
+  sel.innerHTML = forwarders.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
+}
+
+async function fetchAllPOs() {
+  const r = await fetch('/api/po');
+  allPOs = await r.json();
+}
+
+async function fetchShipments() {
+  const r = await fetch('/api/shipments');
+  shipments = await r.json();
+  renderTable();
+  renderGantt();
+}
+
+async function fetchStats() {
+  const r = await fetch('/api/dashboard-stats');
+  const d = await r.json();
+  document.getElementById('stat-transit').textContent = d.in_transit;
+  document.getElementById('stat-week').textContent = d.arriving_this_week;
+  document.getElementById('stat-overdue').textContent = d.overdue;
+  document.getElementById('stat-clearance').textContent = d.under_clearance;
+  document.getElementById('stat-delivered').textContent = d.delivered_this_month;
+
+  const banner = document.getElementById('delayBanner');
+  if (d.overdue > 0) {
+    banner.classList.add('show');
+    document.getElementById('delayBannerText').textContent =
+      `${d.overdue} shipment${d.overdue>1?'s':''} overdue — click to sort`;
+  } else {
+    banner.classList.remove('show');
+  }
+
+  document.getElementById('performance-tbody').innerHTML = d.forwarder_stats.map(f => `
+    <tr>
+      <td style="font-weight:700">${esc(f.name)}</td>
+      <td>${f.active_shipments}</td>
+      <td>${f.total_shipments}</td>
+      <td>${f.avg_transit_days || '—'} days</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden">
+            <div style="width:${f.on_time_pct||0}%;height:100%;background:${(f.on_time_pct||0)>80?'var(--accent)':'var(--orange)'}"></div>
+          </div>
+          <span style="font-size:10px;font-weight:700">${f.on_time_pct!=null?f.on_time_pct+'%':'—'}</span>
+        </div>
+      </td>
+      <td style="color:${f.current_delays>0?'var(--red)':'inherit'};font-weight:700">${f.current_delays}</td>
+    </tr>
+  `).join('');
+}
+
+// ─── Pending POs panel ────────────────────────────────────────────────────────
+// Shows POs that have a forwarder assigned but are not yet linked to any shipment
+function renderPendingPOs() {
+  const linkedPoIds = new Set(shipments.flatMap(s => s.linked_pos.map(p => p.id)));
+  const SKIP = new Set(['Cancelled', 'Received']);
+
+  const pending = allPOs.filter(p =>
+    p.forwarder_id && p.forwarder_id.trim() &&
+    !SKIP.has(p.status) &&
+    !linkedPoIds.has(p.id)
+  );
+
+  const section = document.getElementById('pendingSection');
+  document.getElementById('pendingCount').textContent = pending.length;
+
+  if (!pending.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  document.getElementById('pendingPosList').innerHTML = pending.map(po => {
+    const sup = po.supplier_snapshot?.company || po.supplier_snapshot?.name || '—';
+    const fwd = forwarders.find(f => f.id === po.forwarder_id);
+    const fwdName = fwd ? fwd.name : 'Unknown forwarder';
+    return `
+      <div class="pending-row">
+        <div class="pending-po-num">${esc(po.po_number)}</div>
+        <div class="pending-meta">
+          <div class="pm">Supplier: <span>${esc(sup)}</span></div>
+          <div class="pm">Forwarder: <span style="color:var(--cyan)">${esc(fwdName)}</span></div>
+          <div class="pm">PO Status: <span class="badge ${STATUS_BADGE[po.status]||'badge-gray'}" style="font-size:9px;padding:2px 6px">${po.status}</span></div>
+          ${po.due_date ? `<div class="pm">Due: <span style="color:var(--accent)">${po.due_date}</span></div>` : ''}
+        </div>
+        <div>
+          <a href="/po/" class="btn btn-ghost btn-xs" title="Go to PO form to fill departure &amp; arrival dates, then the shipment will appear here">Open PO →</a>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ─── Render table ─────────────────────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('shipments-tbody');
+  const q = document.getElementById('globalSearch').value.toLowerCase();
+  const sf = document.getElementById('filterStatus').value;
+
+  let rows = shipments.filter(s => {
+    const matchQ = !q ||
+      (s.description||'').toLowerCase().includes(q) ||
+      (s.forwarder_name||'').toLowerCase().includes(q) ||
+      (s.booking_ref||'').toLowerCase().includes(q) ||
+      s.linked_pos.some(p => p.po_number.toLowerCase().includes(q));
+    return matchQ && (!sf || s.status === sf);
+  });
+
+  rows.sort((a,b) => {
+    let va = sortField==='days_until' ? getDays(a.expected_arrival) : (a[sortField]||'');
+    let vb = sortField==='days_until' ? getDays(b.expected_arrival) : (b[sortField]||'');
+    if (va < vb) return sortOrder==='asc'?-1:1;
+    if (va > vb) return sortOrder==='asc'?1:-1;
+    return 0;
+  });
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-td">No shipments match your filters</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(s => {
+    const days = getDays(s.expected_arrival);
+    const isOver = days < 0 && s.status !== 'Delivered';
+    const isSoon = days >= 0 && days <= 3 && s.status !== 'Delivered';
+    const rowCls = isOver?'overdue':isSoon?'soon':s.status==='Delivered'?'delivered':'';
+
+    // PO chips — green dot if PO is active (Shipped/In Transit)
+    const chips = s.linked_pos.map(p => {
+      const active = ['Shipped','In Transit'].includes(p.status);
+      return `<span class="po-chip ${active?'active':''}" title="PO ${p.po_number} · ${p.status}"><span class="dot"></span>${esc(p.po_number)}</span>`;
+    }).join('');
+
+    const lastNote = s.notes.length ? s.notes[s.notes.length-1] : null;
+
+    return `
+      <tr class="${rowCls}" onclick="openDrawer('${s.id}')" style="cursor:pointer">
+        <td>
+          <div style="font-weight:700;color:#fff">
+            <span id="chevron-${s.id}" onclick="toggleItems(event, '${s.id}')" style="display:inline-block; transition: transform 0.2s; cursor:pointer; margin-right: 6px;">▶</span>
+            ${esc(s.description)||'<span style="color:var(--text3)">—</span>'}
+          </div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">${s.booking_ref?'Ref: '+esc(s.booking_ref):'<span style="color:var(--text3)">No booking ref yet</span>'}</div>
+        </td>
+        <td style="font-weight:600">${esc(s.forwarder_name)}</td>
+        <td><div class="po-chips">${chips||'<span style="color:var(--text3);font-size:10px">—</span>'}</div></td>
+        <td style="font-size:12px">${s.departure_date}</td>
+        <td style="font-size:12px">${s.expected_arrival}</td>
+        <td>
+          ${isOver
+            ? `<span class="badge badge-red">${Math.abs(days)} days overdue</span>`
+            : s.status==='Delivered'
+              ? `<span class="badge badge-green">DONE</span>`
+              : `<span class="badge ${isSoon?'badge-orange':'badge-gray'}">${days} days left</span>`}
+        </td>
+        <td onclick="event.stopPropagation()">
+          <select class="status-inline" onchange="updateStatus(event,'${s.id}')">
+            ${STAGES.map(st=>`<option value="${st}"${s.status===st?' selected':''}>${st}</option>`).join('')}
+          </select>
+        </td>
+        <td onclick="event.stopPropagation()">
+          ${lastNote
+            ? `<span title="${esc(lastNote.text)}" style="cursor:help;font-size:15px">💬</span>`
+            : `<span style="color:var(--text3);font-size:11px">—</span>`}
+        </td>
+      </tr>
+      <tr id="items-row-${s.id}" style="display:none; background: rgba(59,130,246,0.02);">
+        <td colspan="8" style="padding: 0;">
+          <div id="items-container-${s.id}" style="padding: 10px 40px;"></div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function getDays(ds) {
+  if (!ds) return 9999;
+  // Parse YYYY-MM-DD manually to create a Local Date (ignoring UTC shift)
+  const parts = ds.split('-');
+  if (parts.length !== 3) return 9999;
+  const t = new Date(parts[0], parts[1] - 1, parts[2]);
+  const n = new Date();
+  n.setHours(0,0,0,0);
+  return Math.round((t - n) / 86400000);
+}
+
+function sortTable(f) {
+  sortField===f ? (sortOrder=sortOrder==='asc'?'desc':'asc') : (sortField=f, sortOrder='asc');
+  renderTable();
+}
+
+// ─── PO Items Expand (Feature A) ──────────────────────────────────────────────
+async function toggleItems(e, id) {
+  e.stopPropagation();
+  const tr = document.getElementById('items-row-' + id);
+  const icon = document.getElementById('chevron-' + id);
+  if (!tr) return;
+  
+  if (tr.style.display === 'none') {
+    tr.style.display = 'table-row';
+    icon.style.transform = 'rotate(90deg)';
+    
+    const container = document.getElementById('items-container-' + id);
+    if (!container.innerHTML) {
+      container.innerHTML = '<div style="padding: 15px; color: var(--text3); text-align: center;">Loading items...</div>';
+      try {
+        const res = await fetch(`/api/shipments/${id}/items`);
+        const items = await res.json();
+        if (items && items.length) {
+          container.innerHTML = `
+            <table style="width: 100%; margin: 10px 0; background: rgba(0,0,0,0.2); border-radius: 8px;">
+              <thead>
+                <tr>
+                  <th style="background: rgba(0,0,0,0.3); border-bottom: 1px solid var(--border); padding: 8px 12px; color: var(--text2);">Item Name</th>
+                  <th style="background: rgba(0,0,0,0.3); border-bottom: 1px solid var(--border); padding: 8px 12px; color: var(--text2);">Quantity</th>
+                  <th style="background: rgba(0,0,0,0.3); border-bottom: 1px solid var(--border); padding: 8px 12px; color: var(--text2);">Unit Price (INR)</th>
+                  <th style="background: rgba(0,0,0,0.3); border-bottom: 1px solid var(--border); padding: 8px 12px; color: var(--text2);">PO Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${items.map(it => `
+                  <tr>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text); font-weight: 600;">${esc(it.item_name)}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); font-weight: 700;">${it.qty}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.03);">₹${it.unit_price_inr.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.03);"><span class="badge ${STATUS_BADGE[it.status] || 'badge-gray'}" style="font-size:9px;">${it.status}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        } else {
+          container.innerHTML = '<div style="padding: 15px; color: var(--text3); text-align: center; font-style: italic;">No items found in this shipment.</div>';
+        }
+      } catch (err) {
+        container.innerHTML = '<div style="padding: 15px; color: var(--red); text-align: center;">Failed to load items.</div>';
+      }
+    }
+  } else {
+    tr.style.display = 'none';
+    icon.style.transform = 'rotate(0deg)';
+  }
+}
+
+// ─── Arrival Planner (Feature B) ──────────────────────────────────────────────
+let activeItemsData = null;
+
+async function switchTab(tab) {
+  if (tab === 'table') {
+    document.getElementById('view-table').style.display = 'block';
+    document.getElementById('view-planner').style.display = 'none';
+    document.getElementById('btn-tab-table').className = 'btn btn-primary';
+    document.getElementById('btn-tab-planner').className = 'btn btn-ghost';
+  } else {
+    document.getElementById('view-table').style.display = 'none';
+    document.getElementById('view-planner').style.display = 'block';
+    document.getElementById('btn-tab-table').className = 'btn btn-ghost';
+    document.getElementById('btn-tab-planner').className = 'btn btn-primary';
+    await renderArrivalPlanner();
+  }
+}
+
+async function renderArrivalPlanner() {
+  const container = document.getElementById('arrival-planner-container');
+  
+  if (!activeItemsData) {
+    container.innerHTML = '<div style="color:var(--text3); padding: 40px; text-align: center;">Loading planner data...</div>';
+    try {
+      const res = await fetch('/api/shipments/active-items');
+      activeItemsData = await res.json();
+    } catch(err) {
+      container.innerHTML = '<div style="color:var(--red); padding: 40px; text-align: center;">Failed to load item data.</div>';
+      return;
+    }
+  }
+
+  // Filter only active shipments (not delivered) and sort by expected arrival
+  let plannerShipments = shipments.filter(s => s.status !== 'Delivered' && s.expected_arrival);
+  plannerShipments.sort((a,b) => {
+    let va = getDays(a.expected_arrival);
+    let vb = getDays(b.expected_arrival);
+    return va - vb;
+  });
+
+  if (!plannerShipments.length) {
+    container.innerHTML = '<div style="color:var(--text3); padding: 40px; text-align: center; font-style: italic;">No active shipments in transit.</div>';
+    return;
+  }
+  
+  container.innerHTML = plannerShipments.map(s => {
+    const days = getDays(s.expected_arrival);
+    const isOver = days < 0;
+    
+    // Progress bar calculation based on 30-day fixed transit
+    let progress = 0;
+    if (s.departure_date) {
+        const elapsed = -getDays(s.departure_date); 
+        progress = Math.max(0, Math.min(100, (elapsed / 30) * 100));
+    }
+    
+    const items = activeItemsData[s.id] || [];
+    
+    return `
+      <div style="background: linear-gradient(135deg,var(--bg2),var(--bg3)); border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow-md);">
+        <div style="display:flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+          <div>
+            <div style="font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 4px;">${esc(s.description) || 'Shipment'}</div>
+            <div style="font-size: 12px; color: var(--text2);">
+              Forwarder: <span style="color:var(--cyan);">${esc(s.forwarder_name)}</span> &nbsp;·&nbsp; 
+              POs: ${s.linked_pos.map(p => esc(p.po_number)).join(', ')}
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 14px; font-weight: 800; color: ${isOver ? 'var(--red)' : 'var(--accent)'}; margin-bottom: 4px;">
+              ${isOver ? 'OVERDUE' : `Arriving in ${days} days`}
+            </div>
+            <div style="font-size: 11px; color: var(--text2);">Exp: ${s.expected_arrival}</div>
+          </div>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <div style="display:flex; justify-content: space-between; font-size: 10px; color: var(--text2); margin-bottom: 6px; font-weight: 700; text-transform: uppercase;">
+            <span>Departure: ${s.departure_date || 'N/A'}</span>
+            <span>${Math.round(progress)}% Journey</span>
+          </div>
+          <div style="height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; border: 1px solid var(--border2);">
+            <div style="height: 100%; width: ${progress}%; background: linear-gradient(90deg, var(--accent2), var(--cyan)); border-radius: 3px;"></div>
+          </div>
+        </div>
+        
+        ${items.length ? `
+          <table style="width: 100%; font-size: 11px;">
+            <thead>
+              <tr>
+                <th style="padding: 6px 10px; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border);">Item</th>
+                <th style="padding: 6px 10px; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border);">Status</th>
+                <th style="padding: 6px 10px; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border); text-align: right;">Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map(it => `
+                <tr>
+                  <td style="padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text);">${esc(it.item_name)}</td>
+                  <td style="padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.03);"><span class="badge ${STATUS_BADGE[it.status] || 'badge-gray'}" style="font-size:9px;">${it.status}</span></td>
+                  <td style="padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.03); text-align: right; font-weight: 700;">${it.qty}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : `<div style="font-size: 11px; color: var(--text3); font-style: italic;">No items found</div>`}
+      </div>
+    `;
+  }).join('');
+}
+
+// ─── Status inline update ─────────────────────────────────────────────────────
+async function updateStatus(e, id) {
+  const status = e.target.value;
+  const res = await fetch(`/api/shipments/${id}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({status})
+  });
+  if (res.ok) {
+    toast(`Stage → ${status}`);
+    await refresh();
+    if (currentShipment?.id===id) openDrawer(id);
+  } else toast('Failed to update','err');
+}
+
+// ─── Edit modal ───────────────────────────────────────────────────────────────
+function editShipment(id) {
+  const s = shipments.find(x=>x.id===id);
+  if (!s) return;
+
+  document.getElementById('shipmentId').value = s.id;
+  document.getElementById('s_forwarder_id').value = s.forwarder_id;
+  document.getElementById('s_booking_ref').value = s.booking_ref||'';
+  document.getElementById('s_description').value = s.description||'';
+  document.getElementById('s_departure_date').value = s.departure_date||'';
+  document.getElementById('s_expected_arrival').value = s.expected_arrival||'';
+  document.getElementById('s_actual_arrival').value = s.actual_arrival||'';
+  document.getElementById('s_status').value = s.status;
+  document.getElementById('s_notes').value = '';
+
+  // Eligible POs: all non-cancelled + already-linked ones
+  const eligible = allPOs.filter(p =>
+    p.status !== 'Cancelled' || s.linked_pos.some(lp=>lp.id===p.id)
+  );
+
+  const SC = {
+    Draft:'color:var(--accent4)',Confirmed:'color:var(--accent3)',
+    Shipped:'color:var(--cyan)','In Transit':'color:var(--orange)',
+    Received:'color:var(--accent)',Cancelled:'color:var(--red)'
+  };
+
+  document.getElementById('po-selector').innerHTML = eligible.length
+    ? eligible.map(p => {
+        const linked = s.linked_pos.some(lp=>lp.id===p.id);
+        const sup = p.supplier_snapshot?.company||p.supplier_snapshot?.name||'?';
+        return `
+          <div class="po-check-item">
+            <input type="checkbox" name="po_ids" value="${p.id}" id="poc_${p.id}" ${linked?'checked':''}>
+            <label class="pc-label" for="poc_${p.id}">${esc(p.po_number)} <span style="color:var(--text2);font-size:11px">(${esc(sup)})</span></label>
+            <span class="pc-status" style="${SC[p.status]||'color:var(--text2)'}">${p.status}</span>
+          </div>
+        `;
+      }).join('')
+    : '<div style="font-size:11px;color:var(--text3);padding:8px">No POs available</div>';
+
+  document.getElementById('shipmentOverlay').classList.add('open');
+}
+
+async function saveShipment(e) {
+  e.preventDefault();
+  const id = document.getElementById('shipmentId').value;
+  if (!id) { toast('No shipment selected','err'); return; }
+
+  const poIds = [...document.querySelectorAll('input[name="po_ids"]:checked')].map(c=>c.value);
+
+  const res = await fetch(`/api/shipments/${id}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      forwarder_id: document.getElementById('s_forwarder_id').value,
+      booking_ref:  document.getElementById('s_booking_ref').value,
+      description:  document.getElementById('s_description').value,
+      departure_date: document.getElementById('s_departure_date').value,
+      expected_arrival: document.getElementById('s_expected_arrival').value,
+      actual_arrival: document.getElementById('s_actual_arrival').value,
+      status: document.getElementById('s_status').value,
+      po_ids: poIds,
+      notes: document.getElementById('s_notes').value,
+    })
+  });
+
+  if (res.ok) {
+    toast('Shipment updated ✓');
+    closeModal('shipmentOverlay');
+    await refresh();
+  } else {
+    const err = await res.json().catch(()=>({}));
+    toast(err.error||'Failed to save','err');
+  }
+}
+
+// ─── Drawer ───────────────────────────────────────────────────────────────────
+function openDrawer(id) {
+  const s = shipments.find(x=>x.id===id);
+  if (!s) return;
+  currentShipment = s;
+
+  document.getElementById('d_title').textContent = s.description||'Shipment';
+  document.getElementById('d_sub').textContent =
+    s.forwarder_name + (s.booking_ref ? ' · Ref: '+s.booking_ref : '');
+
+  // Stepper
+  const ci = STAGES.indexOf(s.status);
+  document.getElementById('statusStepper').innerHTML = STAGES.map((st,i) => `
+    <div class="step ${i<ci?'completed':i===ci?'active':''}">
+      <div class="step-icon">${i<ci?'✓':i+1}</div>
+      <div class="step-vline"></div>
+      <div class="step-label">${st}</div>
+    </div>
+  `).join('');
+
+  // Linked POs
+  const poEl = document.getElementById('linked-pos-list');
+  if (s.linked_pos.length) {
+    poEl.innerHTML = s.linked_pos.map(p => `
+      <div class="po-link-row">
+        <div>
+          <div class="po-link-num">${esc(p.po_number)}</div>
+          <div class="po-link-meta">
+            PO Status: <span class="badge ${STATUS_BADGE[p.status]||'badge-gray'}" style="font-size:9px;padding:2px 6px">${p.status}</span>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-xs" onclick="unlinkPO('${s.id}','${p.id}')">Unlink</button>
+      </div>
+    `).join('');
+  } else {
+    poEl.innerHTML = `<div style="font-size:11px;color:var(--text3)">No POs linked. Use Edit to link POs.</div>`;
+  }
+
+  // Notes (newest first)
+  const noteEl = document.getElementById('notes-log');
+  if (s.notes.length) {
+    noteEl.innerHTML = [...s.notes].reverse().map(n => {
+      const sys = n.author==='System Sync';
+      return `
+        <div class="note-entry">
+          <div class="note-meta">
+            ${n.date}
+            <span class="note-author-tag ${sys?'sys':'user'}">${n.author||'User'}</span>
+          </div>
+          <div class="note-text">${esc(n.text)}</div>
+        </div>
+      `;
+    }).join('');
+  } else {
+    noteEl.innerHTML = `<div style="font-size:11px;color:var(--text3)">No notes yet</div>`;
+  }
+
+  document.getElementById('btn-delivered').style.display = s.status==='Delivered'?'none':'inline-flex';
+  document.getElementById('shipmentDrawer').classList.add('open');
+  document.getElementById('drawerBackdrop').classList.add('show');
+}
+
+function closeDrawer() {
+  document.getElementById('shipmentDrawer').classList.remove('open');
+  document.getElementById('drawerBackdrop').classList.remove('show');
+  currentShipment = null;
+}
+
+function editCurrentShipment() {
+  const id = currentShipment.id;
+  closeDrawer();
+  editShipment(id);
+}
+
+async function addNote() {
+  const text = document.getElementById('new-note').value.trim();
+  if (!text) return;
+  const res = await fetch(`/api/shipments/${currentShipment.id}/notes`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({text})
+  });
+  if (res.ok) {
+    document.getElementById('new-note').value = '';
+    const updated = await res.json();
+    const idx = shipments.findIndex(x=>x.id===updated.id);
+    if (idx>=0) shipments[idx] = updated;
+    openDrawer(updated.id);
+    renderTable();
+  }
+}
+
+async function markAsDelivered() {
+  const today = new Date().toISOString().slice(0,10);
+  const res = await fetch(`/api/shipments/${currentShipment.id}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({status:'Delivered', actual_arrival:today})
+  });
+  if (res.ok) { toast('Marked as Delivered ✓'); closeDrawer(); await refresh(); }
+}
+
+async function deleteCurrentShipment() {
+  if (!confirm('Delete this shipment? The linked POs will remain intact.')) return;
+  const res = await fetch(`/api/shipments/${currentShipment.id}`, {method:'DELETE'});
+  if (res.ok) { toast('Shipment deleted'); closeDrawer(); await refresh(); }
+}
+
+async function unlinkPO(sid, pid) {
+  if (!confirm('Unlink this PO from the shipment?')) return;
+  const res = await fetch(`/api/shipments/${sid}/unlink-po`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({po_id: pid})
+  });
+  if (res.ok) {
+    await refresh();
+    const s = shipments.find(x=>x.id===sid);
+    if (s) openDrawer(sid);
+  }
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function toast(msg, type='ok') {
+  const a = document.getElementById('toastArea');
+  const t = document.createElement('div');
+  t.className=`toast ${type}`; t.textContent=msg; a.appendChild(t);
+  setTimeout(()=>t.remove(), 3200);
+}
+
+function scrollToDelays() {
+  sortField='days_until'; sortOrder='asc'; renderTable();
+  window.scrollTo({top:(document.querySelector('table')?.offsetTop||0)-100,behavior:'smooth'});
+}
+
+function esc(s) {
+  if (s==null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Gantt ────────────────────────────────────────────────────────────────────
+function renderGantt() {
+  if (ganttChart) { ganttChart.destroy(); ganttChart=null; }
+  const active = shipments.filter(s=>s.status!=='Delivered');
+  if (!active.length) return;
+
+  const today = new Date();
+  const maxD  = new Date(); maxD.setDate(today.getDate()+60);
+
+  // Local date parsing helper to avoid timezone shifts
+  function parseLocalDate(ds) {
+    if (!ds) return new Date();
+    const p = ds.split('-');
+    return new Date(p[0], p[1]-1, p[2]);
+  }
+
+    ganttChart = new Chart(document.getElementById('shipmentGantt'), {
+    type: 'bar',
+    data: {
+      labels: active.map(s=>s.description||s.forwarder_name),
+      datasets: [{
+        data: active.map(s=>[
+          parseLocalDate(s.departure_date),
+          parseLocalDate(s.expected_arrival)
+        ]),
+        backgroundColor: active.map(s=>
+          getDays(s.expected_arrival)<0  ?'rgba(239,68,68,.6)':
+          s.status==='Arrived'           ?'rgba(249,115,22,.6)':'rgba(59,130,246,.6)'
+        ),
+        borderColor: active.map(s=>
+          getDays(s.expected_arrival)<0  ?'var(--red)':
+          s.status==='Arrived'           ?'var(--orange)':'var(--accent2)'
+        ),
+        borderWidth:1, borderRadius:4, barPercentage:.5
+      }]
+    },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      scales:{
+        x:{type:'time',time:{unit:'day',displayFormats:{day:'MMM d'}},
+           min: today.setHours(0,0,0,0),
+           max: maxD.setHours(0,0,0,0),
+           grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'var(--text2)',font:{size:9}}},
+        y:{grid:{display:false},ticks:{color:'#fff',font:{size:10,weight:'700'}}}
+      },
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>`Dept: ${ctx.raw[0].toLocaleDateString()} | Arr: ${ctx.raw[1].toLocaleDateString()}`}}
+      }
+    }
+  });
+}
+
+// ─── Bootstrap ────────────────────────────────────────────────────────────────
+const _s = document.createElement('script');
+_s.src='https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns';
+_s.onload=init;
+document.head.appendChild(_s);
+
+// Navigation Handler for Unified ERP Sidebar
+document.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const tab = urlParams.get('tab');
+  if (tab) {
+    const tabLink = document.querySelector(`.sb-item[onclick*="${tab}"]`);
+    if (tabLink) showTab(tab, tabLink);
+  }
+});
+</script>
+</body>
+</html>
