@@ -371,6 +371,9 @@
             <!-- Rows injected by JS -->
           </tbody>
         </table>
+        <div style="padding: 10px; border-top: 1px solid var(--border);">
+            <button class="btn btn-ghost" style="color: var(--accent); font-size: 13px; font-weight: 600;" onclick="addGridRow()">+ Add Item Row</button>
+        </div>
       </div>
 
       <!-- FOOTER PANE -->
@@ -738,6 +741,16 @@ function addGridRow() {
             }
             else if(e.key === 'Escape') {
                 list.style.display = 'none';
+            }
+            else if(e.key === 'Tab' && !e.shiftKey) {
+                if(myIdx === rowInputs.length - 1) {
+                    const nextTr = tr.nextElementSibling;
+                    if(!nextTr) {
+                        e.preventDefault();
+                        addGridRow();
+                        tr.nextElementSibling.querySelector('.row-code').focus();
+                    }
+                }
             }
         });
     });
