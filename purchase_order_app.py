@@ -5630,9 +5630,8 @@ def get_dashboard_stats():
         cursor.execute("""
             SELECT COUNT(*) FROM shipments
             WHERE status = 'Delivered'
-            AND COALESCE(actual_arrival, substr(updated_at, 1, 10)) >= ?
             AND deleted_at IS NULL
-        """, (month_start,))
+        """)
 
         delivered_this_month = cursor.fetchone()[0]
 
