@@ -1,0 +1,13 @@
+STDOUT:
+Updating 33bda68..098e160
+Fast-forward
+ purchase_order_app.py              | 3 +--
+ templates/forwarder_dashboard.html | 2 +-
+ 2 files changed, 2 insertions(+), 3 deletions(-)
+Use --update-env to update environment variables
+
+STDERR:
+From https://github.com/dckakadia/purchase_order
+ * branch            main       -> FETCH_HEAD
+   33bda68..098e160  main       -> origin/main
+[sudo] password for dckakadia: [PM2][ERROR] Process or Namespace purchase_order not found

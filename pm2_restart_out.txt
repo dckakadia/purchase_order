@@ -1,0 +1,11 @@
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [purchase_order](ids: [ 2 ])
+[PM2] [purchase_order](2) ✓
+┌────┬───────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name              │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 3  │ gps-tracker       │ default     │ 1.0.0   │ fork    │ 0        │ 0      │ 90   │ errored   │ 0%       │ 0b       │ dckakad… │ disabled │
+│ 1  │ order-manager     │ default     │ 1.0.0   │ fork    │ 695447   │ 29h    │ 7    │ online    │ 0%       │ 124.7mb  │ dckakad… │ disabled │
+│ 2  │ purchase_order    │ default     │ N/A     │ fork    │ 988335   │ 0s     │ 3    │ online    │ 0%       │ 6.9mb    │ dckakad… │ disabled │
+└────┴───────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+
