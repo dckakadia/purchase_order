@@ -246,6 +246,23 @@ def _sync_inv_sequence(cursor, inv_number):
                 ("inv_sequence", str(new_seq))
             )
 
+def _sync_pinv_sequence(cursor, inv_number):
+    """Update pinv_sequence in settings if the given Purchase Invoice number has a higher sequence."""
+    if not inv_number:
+        return
+    seq_match = re.search(r'(\d+)$', inv_number)
+    if seq_match:
+        new_seq = int(seq_match.group(1))
+        cursor.execute("SELECT value FROM settings WHERE key = 'pinv_sequence'")
+        row = cursor.fetchone()
+        current_seq = int(row[0]) if row and row[0].isdigit() else 0
+
+        if new_seq > current_seq:
+            cursor.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                ("pinv_sequence", str(new_seq))
+            )
+
 def _log_status_change(cursor, po_id, from_status, to_status, note=None, force=False):
     """Insert one row into po_status_log. Call within an open transaction."""
     import uuid as _uuid
@@ -638,6 +655,12 @@ def sales_invoice():
     return render_template("sales_invoice.html")
 
 
+@app.route("/purchase-invoice")
+@require_permission("supplier_books")
+def purchase_invoice():
+    return render_template("purchase_invoice.html")
+
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SUPPLIERS
@@ -970,7 +993,7 @@ def add_ledger_entry(sid):
     elif dr_cr not in ("DR", "CR"):
         return jsonify({"error": "dr_cr must be DR or CR"}), 400
 
-    # Fetch exchange rate
+    # Fetch exchange rate and verify supplier exists
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM suppliers WHERE id = ?", (sid,))
@@ -979,45 +1002,160 @@ def add_ledger_entry(sid):
         cursor.execute("SELECT value FROM settings WHERE key = 'default_rmb_rate'")
         rate_row = cursor.fetchone()
     default_cny_rate = _safe_float(rate_row['value'] if rate_row else None, 11.5)
-
     cny_rate = _safe_float(req.get("cny_rate") or req.get("usd_rate"), default_cny_rate)
-
-    amount_inr = _safe_float(req.get("amount_inr"), 0)
-    amount_cny = _safe_float(req.get("amount_cny") or req.get("amount_usd"), 0)
-
-    if amount_inr > 0 and amount_cny == 0:
-        amount_cny = round(amount_inr / cny_rate, 4)
-    elif amount_cny > 0 and amount_inr == 0:
-        amount_inr = round(amount_cny * cny_rate, 2)
-    elif amount_inr == 0 and amount_cny == 0:
-        return jsonify({"error": "Either amount_inr or amount_cny must be positive"}), 400
 
     entry_date = req.get("entry_date", str(date.today()))
     eid = str(uuid.uuid4())
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO supplier_ledger_entries
-                (id, supplier_id, po_id, entry_type, entry_date, ref_number,
-                 description, amount_usd, amount_inr, usd_rate, dr_cr,
-                 payment_mode, bank_ref, attachment_id, notes, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            eid, sid,
-            req.get("po_id") or None,
-            entry_type, entry_date,
-            req.get("ref_number", ""),
-            req.get("description", ""),
-            amount_cny, amount_inr, cny_rate, dr_cr,
-            req.get("payment_mode", ""),
-            req.get("bank_ref", ""),
-            req.get("attachment_id") or None,
-            req.get("notes", ""),
-            req.get("created_by", "User"),
-        ))
-        cursor.execute("SELECT * FROM supplier_ledger_entries WHERE id = ?", (eid,))
-        row = dict(cursor.fetchone())
-    return jsonify(row), 201
+
+    if entry_type == "INVOICE":
+        # Structured Purchase Invoice: atomic insert into supplier_invoices + items + ledger
+        items_data = req.get("items", [])
+        if not items_data:
+            return jsonify({"error": "Invoice must contain at least one item."}), 400
+
+        description = req.get("description", "")
+        created_by = req.get("created_by", "User")
+
+        try:
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("BEGIN TRANSACTION")
+
+                invoice_id = str(uuid.uuid4())
+                ref_number = req.get("ref_number", "")
+
+                if ref_number:
+                    cursor.execute("SELECT id FROM supplier_invoices WHERE invoice_no = ?", (ref_number,))
+                    if cursor.fetchone():
+                        cursor.execute("ROLLBACK")
+                        return jsonify({"error": f"Invoice number '{ref_number}' already exists. Please refresh to get a new number."}), 409
+                    inv_no = ref_number
+                    _sync_pinv_sequence(cursor, inv_no)
+                else:
+                    cursor.execute("SELECT key, value FROM settings WHERE key IN ('pinv_prefix', 'pinv_sequence')")
+                    cfg = {row["key"]: row["value"] for row in cursor.fetchall()}
+                    prefix = (cfg.get("pinv_prefix") or "PINV").strip()
+                    seq = int(cfg.get("pinv_sequence") or "0")
+                    year = date.today().year
+                    while True:
+                        seq += 1
+                        inv_no = f"{prefix}-{year}-{str(seq).zfill(3)}"
+                        cursor.execute("SELECT id FROM supplier_invoices WHERE invoice_no = ?", (inv_no,))
+                        if not cursor.fetchone():
+                            break
+                    _sync_pinv_sequence(cursor, inv_no)
+
+                ref_number = inv_no
+
+                subtotal = 0.0
+                prepared_items = []
+                for item in items_data:
+                    qty = _safe_float(item.get("qty"), 1.0)
+                    price = _safe_float(item.get("unit_price"), 0.0)
+                    line_total = round(qty * price, 2)
+                    subtotal += line_total
+                    prepared_items.append((
+                        str(uuid.uuid4()), invoice_id, item.get("item_id"), item.get("description", ""),
+                        qty, price, line_total
+                    ))
+
+                tax_rate = _safe_float(req.get("tax_rate"), 0.0)
+                discount_amount = _safe_float(req.get("discount_amount"), 0.0)
+                tax_amount = round((subtotal - discount_amount) * (tax_rate / 100.0), 2)
+                if tax_amount < 0: tax_amount = 0.0
+                grand_total = round(subtotal - discount_amount + tax_amount, 2)
+                amount_cny = grand_total
+                amount_inr = round(amount_cny * cny_rate, 2)
+
+                if amount_cny <= 0:
+                    cursor.execute("ROLLBACK")
+                    return jsonify({"error": "Invoice grand total must be positive."}), 400
+
+                due_date = req.get("due_date") or None
+
+                cursor.execute("""
+                    INSERT INTO supplier_invoices
+                        (id, supplier_id, invoice_no, invoice_date, due_date,
+                         subtotal, tax_rate, tax_amount, discount_amount, grand_total,
+                         description, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    invoice_id, sid, inv_no, entry_date, due_date,
+                    subtotal, tax_rate, tax_amount, discount_amount, grand_total,
+                    description, created_by
+                ))
+
+                for item_tuple in prepared_items:
+                    cursor.execute("""
+                        INSERT INTO supplier_invoice_items
+                            (id, invoice_id, item_id, description, qty, unit_price, total_price)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, item_tuple)
+
+                cursor.execute("""
+                    INSERT INTO supplier_ledger_entries
+                        (id, supplier_id, po_id, entry_type, entry_date, ref_number,
+                         description, amount_usd, amount_inr, usd_rate, dr_cr,
+                         payment_mode, bank_ref, attachment_id, notes, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    eid, sid,
+                    req.get("po_id") or None,
+                    entry_type, entry_date, inv_no, description,
+                    amount_cny, amount_inr, cny_rate, dr_cr,
+                    req.get("payment_mode", ""),
+                    req.get("bank_ref", ""),
+                    req.get("attachment_id") or None,
+                    req.get("notes", ""),
+                    created_by,
+                ))
+
+                conn.commit()
+        except Exception as e:
+            return jsonify({"error": f"Database error: {str(e)}"}), 500
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM supplier_ledger_entries WHERE id = ?", (eid,))
+            row = dict(cursor.fetchone())
+        return jsonify(row), 201
+
+    else:
+        # Flat logic for PAYMENT, DEBIT_NOTE, CREDIT_NOTE, ADJUSTMENT — unchanged
+        amount_inr = _safe_float(req.get("amount_inr"), 0)
+        amount_cny = _safe_float(req.get("amount_cny") or req.get("amount_usd"), 0)
+
+        if amount_inr > 0 and amount_cny == 0:
+            amount_cny = round(amount_inr / cny_rate, 4)
+        elif amount_cny > 0 and amount_inr == 0:
+            amount_inr = round(amount_cny * cny_rate, 2)
+        elif amount_inr == 0 and amount_cny == 0:
+            return jsonify({"error": "Either amount_inr or amount_cny must be positive"}), 400
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO supplier_ledger_entries
+                    (id, supplier_id, po_id, entry_type, entry_date, ref_number,
+                     description, amount_usd, amount_inr, usd_rate, dr_cr,
+                     payment_mode, bank_ref, attachment_id, notes, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                eid, sid,
+                req.get("po_id") or None,
+                entry_type, entry_date,
+                req.get("ref_number", ""),
+                req.get("description", ""),
+                amount_cny, amount_inr, cny_rate, dr_cr,
+                req.get("payment_mode", ""),
+                req.get("bank_ref", ""),
+                req.get("attachment_id") or None,
+                req.get("notes", ""),
+                req.get("created_by", "User"),
+            ))
+            cursor.execute("SELECT * FROM supplier_ledger_entries WHERE id = ?", (eid,))
+            row = dict(cursor.fetchone())
+        return jsonify(row), 201
 
 
 @app.route("/api/suppliers/<sid>/ledger/<eid>", methods=["PUT"])
@@ -2596,6 +2734,30 @@ def next_invoice_number():
             seq += 1
             inv_number = f"{prefix}-{year}-{str(seq).zfill(3)}"
             cursor.execute("SELECT id FROM customer_invoices WHERE invoice_no = ?", (inv_number,))
+            if not cursor.fetchone():
+                break
+
+    return jsonify({"inv_number": inv_number, "sequence": seq})
+
+
+@app.route("/api/next-purchase-invoice-number", methods=["GET"])
+@require_permission("supplier_books")
+def next_purchase_invoice_number():
+    """Predict the next Purchase Invoice number based on current settings and existing invoices."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        init_default_settings(conn)
+        cursor.execute("SELECT key, value FROM settings WHERE key IN ('pinv_prefix', 'pinv_sequence')")
+        cfg = {row["key"]: row["value"] for row in cursor.fetchall()}
+
+        prefix = (cfg.get("pinv_prefix") or "PINV").strip()
+        seq = int(cfg.get("pinv_sequence") or "0")
+        year = date.today().year
+
+        while True:
+            seq += 1
+            inv_number = f"{prefix}-{year}-{str(seq).zfill(3)}"
+            cursor.execute("SELECT id FROM supplier_invoices WHERE invoice_no = ?", (inv_number,))
             if not cursor.fetchone():
                 break
 
@@ -6043,6 +6205,191 @@ def get_customer_invoice_pdf(cid, invoice_no):
     except Exception as e:
         return jsonify({"error": f"Failed to generate Invoice View: {str(e)}"}), 500
 
+
+@app.route("/api/suppliers/<sid>/invoices/<invoice_no>/pdf", methods=["GET"])
+def get_supplier_invoice_pdf(sid, invoice_no):
+    """Generate and return a printable HTML view for a specific purchase invoice."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM suppliers WHERE id = ?", (sid,))
+        supplier = cursor.fetchone()
+        if not supplier:
+            return jsonify({"error": "Supplier not found"}), 404
+
+        cursor.execute("SELECT * FROM supplier_invoices WHERE supplier_id = ? AND invoice_no = ?", (sid, invoice_no))
+        invoice_row = cursor.fetchone()
+        if not invoice_row:
+            return jsonify({"error": "Invoice not found"}), 404
+        invoice = dict(invoice_row)
+
+        cursor.execute("""
+            SELECT si.*, i.name as item_name
+            FROM supplier_invoice_items si
+            LEFT JOIN items i ON si.item_id = i.id
+            WHERE si.invoice_id = ?
+        """, (invoice["id"],))
+        items = [dict(i) for i in cursor.fetchall()]
+
+        cursor.execute("SELECT key, value FROM settings")
+        settings = {row["key"]: row["value"] for row in cursor.fetchall()}
+
+    try:
+        from flask import render_template_string
+
+        seller_lines = []
+        if settings.get("company_name"): seller_lines.append(f'<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:3px">{_e(settings["company_name"])}</div>')
+        if settings.get("company_address"):
+            addr_html = _e(settings["company_address"]).replace("\n", "<br>")
+            seller_lines.append(f'<div style="color:#4b5563">{addr_html}</div>')
+        if settings.get("company_phone"): seller_lines.append(f'<div style="color:#4b5563">Ph: {_e(settings["company_phone"])}</div>')
+        if settings.get("company_email"): seller_lines.append(f'<div style="color:#4b5563">Email: {_e(settings["company_email"])}</div>')
+        if settings.get("company_gstin"): seller_lines.append(f'<div style="color:#4b5563">GSTIN: {_e(settings["company_gstin"])}</div>')
+        seller_html = "".join(seller_lines) or '<div style="color:#9ca3af">Company details not configured.</div>'
+
+        sup = dict(supplier)
+        sup_lines = []
+        sup_lines.append(f'<div style="font-size:14px;font-weight:700;color:#111;margin-bottom:3px">{_e(sup.get("name") or "—")}</div>')
+        if sup.get("address"): sup_lines.append(f'<div style="color:#4b5563">{_e(sup["address"])}</div>')
+        if sup.get("email"): sup_lines.append(f'<div style="color:#4b5563">Email: {_e(sup["email"])}</div>')
+        if sup.get("phone"): sup_lines.append(f'<div style="color:#4b5563">Ph: {_e(sup["phone"])}</div>')
+        supplier_html = "".join(sup_lines)
+
+        item_rows = ""
+        for i, li in enumerate(items):
+            item_name = _e(li.get('item_name') or 'Custom Item')
+            description = _e(li.get('description') or '-')
+            item_rows += f"""<tr>
+              <td style="text-align:center;color:#374151">{i+1}</td>
+              <td style="font-weight:600;color:#111;">{item_name}</td>
+              <td style="color:#4b5563;">{description}</td>
+              <td style="text-align:center;font-weight:600">{li['qty']}</td>
+              <td style="text-align:right">{li['unit_price']:,.2f}</td>
+              <td style="text-align:right;font-weight:700;color:#1e3a8a">{li['total_price']:,.2f}</td>
+            </tr>"""
+
+        invoice_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Purchase Invoice {_e(invoice['invoice_no'])}</title>
+<style>
+  *{{box-sizing:border-box;margin:0;padding:0}}
+  body{{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#111;background:#fff;padding:32px 36px;max-width:920px;margin:0 auto}}
+  .po-header{{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:3px solid #1e3a8a;margin-bottom:14px}}
+  .po-main-title{{font-size:28px;font-weight:700;color:#1e3a8a;letter-spacing:-.02em;line-height:1}}
+  .po-subtitle{{font-size:11px;color:#6b7280;margin-top:3px;letter-spacing:.06em;text-transform:uppercase}}
+  .po-header-right{{text-align:right;font-size:12px}}
+  .po-meta-row{{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-bottom:4px;color:#374151}}
+  .po-meta-row strong{{color:#111;min-width:60px;text-align:right}}
+  .parties-grid{{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:14px}}
+  .party-box{{padding:10px 14px}}
+  .party-box:first-child{{border-right:1px solid #e5e7eb;background:#f9fafb}}
+  .party-box:last-child{{background:#f0f6ff}}
+  .party-label{{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6b7280;margin-bottom:8px;display:flex;align-items:center;gap:5px}}
+  .party-label::before{{content:'';display:block;width:10px;height:2px;background:#1e3a8a;border-radius:1px}}
+  table{{width:100%;border-collapse:collapse;margin-bottom:0}}
+  thead tr{{background:#1e3a8a}}
+  thead th{{padding:7px 10px;color:#fff;font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;text-align:left}}
+  tbody tr:nth-child(even){{background:#f8faff}}
+  tbody td{{padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;vertical-align:top}}
+  tfoot tr{{background:#1e3a8a}}
+  tfoot td{{padding:7px 10px;color:#fff;font-weight:700;font-size:13px}}
+  .table-wrap{{border:1px solid #d1d5db;border-radius:8px;overflow:hidden;margin-bottom:16px}}
+  .totals-table{{width:300px;margin-left:auto;border-collapse:collapse}}
+  .totals-table td{{padding:6px 8px;border:none;font-size:12px}}
+  .totals-table tr.grand-total{{border-top:2px solid #1e3a8a;font-weight:700;font-size:15px;color:#1e3a8a}}
+  @media print{{
+    body{{padding:10px 14px}}
+    @page{{margin:6mm 8mm;size:A4}}
+  }}
+</style>
+</head>
+<body onload="window.print()">
+
+<div class="po-header">
+  <div class="po-header-left">
+    <div class="po-main-title">PURCHASE INVOICE</div>
+    <div class="po-subtitle">Supplier Invoice Record</div>
+  </div>
+  <div class="po-header-right">
+    <div class="po-meta-row"><strong>Invoice No:</strong>&nbsp;{_e(invoice['invoice_no'])}</div>
+    <div class="po-meta-row"><strong>Date:</strong>&nbsp;{_e(invoice['invoice_date'])}</div>
+    {f'<div class="po-meta-row"><strong>Due Date:</strong>&nbsp;{_e(invoice["due_date"])}</div>' if invoice['due_date'] else ''}
+  </div>
+</div>
+
+<div class="parties-grid">
+  <div class="party-box">
+    <div class="party-label">Purchased By</div>
+    {seller_html}
+  </div>
+  <div class="party-box">
+    <div class="party-label">Supplier</div>
+    {supplier_html}
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:40px;text-align:center">#</th>
+        <th style="width:250px">Item Name</th>
+        <th>Description</th>
+        <th style="width:80px;text-align:center">Qty</th>
+        <th style="width:100px;text-align:right">Rate (CNY)</th>
+        <th style="width:120px;text-align:right">Amount (CNY)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {item_rows}
+    </tbody>
+  </table>
+</div>
+
+<table class="totals-table">
+  <tr>
+    <td>Subtotal</td>
+    <td style="text-align:right">{invoice['subtotal']:,.2f}</td>
+  </tr>"""
+
+        if invoice['discount_amount'] > 0:
+            invoice_html += f"""
+  <tr>
+    <td>Discount</td>
+    <td style="text-align:right">- {invoice['discount_amount']:,.2f}</td>
+  </tr>"""
+        elif invoice['discount_amount'] < 0:
+            invoice_html += f"""
+  <tr>
+    <td>Freight / Transport</td>
+    <td style="text-align:right">+ {abs(invoice['discount_amount']):,.2f}</td>
+  </tr>"""
+
+        if invoice['tax_amount'] > 0:
+            invoice_html += f"""
+  <tr>
+    <td>Tax ({invoice['tax_rate']}%)</td>
+    <td style="text-align:right">{invoice['tax_amount']:,.2f}</td>
+  </tr>"""
+
+        invoice_html += f"""
+  <tr class="grand-total">
+    <td>Grand Total</td>
+    <td style="text-align:right">¥ {invoice['grand_total']:,.2f}</td>
+  </tr>
+</table>
+
+{f'<div style="margin-top:20px;padding:10px 14px;background:#f8faff;border:1px solid #dbeafe;border-radius:6px;font-size:11px"><div style="font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:9px;color:#1e3a8a;margin-bottom:4px">Notes / Reference</div><div style="color:#1e40af">{_e(invoice["description"])}</div></div>' if invoice.get("description") else ''}
+
+</body>
+</html>"""
+
+        return invoice_html
+    except Exception as e:
+        return jsonify({"error": f"Failed to generate Purchase Invoice View: {str(e)}"}), 500
+
+
 @app.route("/api/customers/<cid>/ledger", methods=["GET"])
 def get_customer_ledger(cid):
     """Fetch all active customer ledger entries with running balance."""
@@ -6279,6 +6626,32 @@ def get_invoice_by_ledger_id(eid):
             "items": items
         })
 
+
+@app.route("/api/invoices/ledger/supplier/<eid>", methods=["GET"])
+@require_permission("supplier_books")
+def get_supplier_invoice_by_ledger_id(eid):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM supplier_ledger_entries WHERE id = ?", (eid,))
+        ledger = cursor.fetchone()
+        if not ledger or ledger["entry_type"] != "INVOICE":
+            return jsonify({"error": "Purchase invoice ledger entry not found"}), 404
+
+        cursor.execute("SELECT * FROM supplier_invoices WHERE invoice_no = ? AND supplier_id = ?", (ledger["ref_number"], ledger["supplier_id"]))
+        invoice = cursor.fetchone()
+        if not invoice:
+            return jsonify({"error": "Invoice details not found"}), 404
+
+        cursor.execute("SELECT * FROM supplier_invoice_items WHERE invoice_id = ?", (invoice["id"],))
+        items = [dict(i) for i in cursor.fetchall()]
+
+        return jsonify({
+            "ledger": dict(ledger),
+            "invoice": dict(invoice),
+            "items": items
+        })
+
+
 @app.route("/api/ledger/customer/<eid>", methods=["PUT"])
 @require_permission("customer_edit")
 def update_customer_ledger_entry(eid):
@@ -6453,7 +6826,7 @@ def delete_customer_ledger_entry(eid):
 @app.route("/api/ledger/supplier/<eid>", methods=["PUT"])
 @require_permission("supplier_edit")
 def update_supplier_ledger_entry_v2(eid):
-    """Edit supplier ledger entry. Locked if older than 7 days."""
+    """Edit supplier ledger entry. Locked if older than 7 days. Also handles purchase invoice updates."""
     req = request.get_json(silent=True) or {}
     with get_db() as conn:
         cursor = conn.cursor()
@@ -6461,75 +6834,161 @@ def update_supplier_ledger_entry_v2(eid):
         row = cursor.fetchone()
         if not row:
             return jsonify({"error": "Ledger entry not found"}), 404
-            
+
         created_str = row["created_at"] or row["entry_date"]
         if is_older_than_7_days(created_str):
             return jsonify({"error": "Entries older than 7 days are locked and cannot be edited"}), 400
-            
+
         entry = dict(row)
-        updated_amount_usd = False
-        updated_amount_inr = False
 
-        for k in ["entry_date", "ref_number", "description", "amount_usd", "amount_cny", "amount_inr", "usd_rate", "cny_rate", "dr_cr", "payment_mode", "bank_ref", "notes"]:
-            if k in req:
-                if k in ("amount_usd", "amount_cny"):
-                    amount = _safe_float(req[k], None)
-                    if amount is None or amount <= 0:
-                        return jsonify({"error": "Amount must be positive and non-zero"}), 400
-                    entry["amount_usd"] = amount
-                    updated_amount_usd = True
-                elif k == "amount_inr":
-                    amount = _safe_float(req[k], None)
-                    if amount is None or amount <= 0:
-                        return jsonify({"error": "amount_inr must be positive and non-zero"}), 400
-                    entry["amount_inr"] = amount
-                    updated_amount_inr = True
-                elif k in ("usd_rate", "cny_rate"):
-                    rate = _safe_float(req[k], None)
-                    if rate is None or rate <= 0:
-                        return jsonify({"error": "usd_rate must be positive and non-zero"}), 400
-                    entry["usd_rate"] = rate
-                elif k == "dr_cr":
-                    if req[k].upper() not in ("DR", "CR"):
-                        return jsonify({"error": "dr_cr must be DR or CR"}), 400
-                    entry[k] = req[k].upper()
-                else:
-                    entry[k] = req[k]
+        if entry["entry_type"] == "INVOICE":
+            cursor.execute("SELECT * FROM supplier_invoices WHERE invoice_no = ? AND supplier_id = ?", (entry["ref_number"], entry["supplier_id"]))
+            inv = cursor.fetchone()
+            if not inv:
+                return jsonify({"error": "Underlying invoice record not found"}), 404
 
-        if updated_amount_usd:
-            entry["amount_inr"] = round(entry["amount_usd"] * entry["usd_rate"], 2)
-        elif updated_amount_inr:
-            entry["amount_usd"] = round(entry["amount_inr"] / entry["usd_rate"], 4)
-        
-        cursor.execute("""
-            UPDATE supplier_ledger_entries
-            SET entry_date = ?, ref_number = ?, description = ?, amount_usd = ?,
-                amount_inr = ?, usd_rate = ?, dr_cr = ?, payment_mode = ?,
-                bank_ref = ?, notes = ?
-            WHERE id = ?
-        """, (
-            entry["entry_date"], entry["ref_number"], entry["description"], entry["amount_usd"],
-            entry["amount_inr"], entry["usd_rate"], entry["dr_cr"], entry["payment_mode"],
-            entry["bank_ref"], entry["notes"], eid
-        ))
-        
-        cursor.execute("SELECT * FROM supplier_ledger_entries WHERE id = ?", (eid,))
-        updated = dict(cursor.fetchone())
-        
+            items = req.get("items", [])
+            if not items:
+                return jsonify({"error": "Invoice must contain at least one item."}), 400
+
+            subtotal = 0.0
+            prepared_items = []
+            invoice_id = inv["id"]
+
+            for item in items:
+                qty = _safe_float(item.get("qty"), 1.0)
+                price = _safe_float(item.get("unit_price"), 0.0)
+                line_total = round(qty * price, 2)
+                subtotal += line_total
+                prepared_items.append((
+                    str(uuid.uuid4()), invoice_id, item.get("item_id"), item.get("description", ""),
+                    qty, price, line_total
+                ))
+
+            tax_rate = _safe_float(req.get("tax_rate"), 0.0)
+            discount_amount = _safe_float(req.get("discount_amount"), 0.0)
+            tax_amount = round((subtotal - discount_amount) * (tax_rate / 100.0), 2)
+            if tax_amount < 0: tax_amount = 0.0
+            grand_total = round(subtotal - discount_amount + tax_amount, 2)
+            amount_cny = grand_total
+
+            if amount_cny <= 0:
+                return jsonify({"error": "Invoice grand total must be positive."}), 400
+
+            cny_rate = _safe_float(entry.get("usd_rate"), 11.5)
+            amount_inr = round(amount_cny * cny_rate, 2)
+
+            entry_date = req.get("entry_date", entry["entry_date"])
+            due_date = req.get("due_date", inv["due_date"])
+            description = req.get("description", entry["description"])
+
+            cursor.execute("BEGIN TRANSACTION")
+            try:
+                cursor.execute("""
+                    UPDATE supplier_invoices
+                    SET invoice_date = ?, due_date = ?, subtotal = ?, tax_rate = ?,
+                        tax_amount = ?, discount_amount = ?, grand_total = ?, description = ?
+                    WHERE id = ?
+                """, (entry_date, due_date, subtotal, tax_rate, tax_amount, discount_amount, grand_total, description, invoice_id))
+
+                cursor.execute("DELETE FROM supplier_invoice_items WHERE invoice_id = ?", (invoice_id,))
+                cursor.executemany("""
+                    INSERT INTO supplier_invoice_items
+                        (id, invoice_id, item_id, description, qty, unit_price, total_price)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, prepared_items)
+
+                cursor.execute("""
+                    UPDATE supplier_ledger_entries
+                    SET entry_date = ?, description = ?, amount_usd = ?, amount_inr = ?
+                    WHERE id = ?
+                """, (entry_date, description, amount_cny, amount_inr, eid))
+
+                cursor.execute("COMMIT")
+            except Exception as e:
+                cursor.execute("ROLLBACK")
+                return jsonify({"error": str(e)}), 500
+
+            cursor.execute("SELECT * FROM supplier_ledger_entries WHERE id = ?", (eid,))
+            updated = dict(cursor.fetchone())
+            return jsonify(updated)
+
+        else:
+            updated_amount_usd = False
+            updated_amount_inr = False
+
+            for k in ["entry_date", "ref_number", "description", "amount_usd", "amount_cny", "amount_inr", "usd_rate", "cny_rate", "dr_cr", "payment_mode", "bank_ref", "notes"]:
+                if k in req:
+                    if k in ("amount_usd", "amount_cny"):
+                        amount = _safe_float(req[k], None)
+                        if amount is None or amount <= 0:
+                            return jsonify({"error": "Amount must be positive and non-zero"}), 400
+                        entry["amount_usd"] = amount
+                        updated_amount_usd = True
+                    elif k == "amount_inr":
+                        amount = _safe_float(req[k], None)
+                        if amount is None or amount <= 0:
+                            return jsonify({"error": "amount_inr must be positive and non-zero"}), 400
+                        entry["amount_inr"] = amount
+                        updated_amount_inr = True
+                    elif k in ("usd_rate", "cny_rate"):
+                        rate = _safe_float(req[k], None)
+                        if rate is None or rate <= 0:
+                            return jsonify({"error": "usd_rate must be positive and non-zero"}), 400
+                        entry["usd_rate"] = rate
+                    elif k == "dr_cr":
+                        if req[k].upper() not in ("DR", "CR"):
+                            return jsonify({"error": "dr_cr must be DR or CR"}), 400
+                        entry[k] = req[k].upper()
+                    else:
+                        entry[k] = req[k]
+
+            if updated_amount_usd:
+                entry["amount_inr"] = round(entry["amount_usd"] * entry["usd_rate"], 2)
+            elif updated_amount_inr:
+                entry["amount_usd"] = round(entry["amount_inr"] / entry["usd_rate"], 4)
+
+            cursor.execute("""
+                UPDATE supplier_ledger_entries
+                SET entry_date = ?, ref_number = ?, description = ?, amount_usd = ?,
+                    amount_inr = ?, usd_rate = ?, dr_cr = ?, payment_mode = ?,
+                    bank_ref = ?, notes = ?
+                WHERE id = ?
+            """, (
+                entry["entry_date"], entry["ref_number"], entry["description"], entry["amount_usd"],
+                entry["amount_inr"], entry["usd_rate"], entry["dr_cr"], entry["payment_mode"],
+                entry["bank_ref"], entry["notes"], eid
+            ))
+
+            cursor.execute("SELECT * FROM supplier_ledger_entries WHERE id = ?", (eid,))
+            updated = dict(cursor.fetchone())
+
     return jsonify(updated)
+
 
 @app.route("/api/ledger/supplier/<eid>", methods=["DELETE"])
 @require_permission("supplier_delete")
 def delete_supplier_ledger_entry_v2(eid):
-    """Soft-delete supplier ledger entry."""
+    """Soft-delete supplier ledger entry. Also removes associated purchase invoice if INVOICE type."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM supplier_ledger_entries WHERE id = ? AND deleted_at IS NULL", (eid,))
-        if not cursor.fetchone():
+        cursor.execute("SELECT * FROM supplier_ledger_entries WHERE id = ? AND deleted_at IS NULL", (eid,))
+        row = cursor.fetchone()
+        if not row:
             return jsonify({"error": "Ledger entry not found"}), 404
-            
-        cursor.execute("UPDATE supplier_ledger_entries SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?", (eid,))
-        
+
+        cursor.execute("BEGIN TRANSACTION")
+        try:
+            cursor.execute("UPDATE supplier_ledger_entries SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?", (eid,))
+
+            if row["entry_type"] == "INVOICE":
+                cursor.execute("DELETE FROM supplier_invoices WHERE invoice_no = ? AND supplier_id = ?", (row["ref_number"], row["supplier_id"]))
+
+            cursor.execute("COMMIT")
+        except Exception as e:
+            cursor.execute("ROLLBACK")
+            return jsonify({"error": str(e)}), 500
+
     return jsonify({"ok": True})
 
 

@@ -100,6 +100,12 @@ input[type=text], input[type=password], select{width:100%;background:rgba(0,0,0,
         Sales Invoices
       </div>
       {% endif %}
+      {% if 'supplier_books' in user_permissions %}
+      <div class="sb-item" onclick="window.location.href='/purchase-invoice'">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h14v2L9 7v7l-2-1-2 1V7L1 3zm12 1.5H3l4 2.8v6.4l1 .5 1-.5V5.3z"/></svg>
+        Purchase Invoices
+      </div>
+      {% endif %}
 
       {% if 'forwarder_dashboard' in user_permissions %}
       <div class="sb-group" style="margin-top: 15px;">LOGISTICS</div>

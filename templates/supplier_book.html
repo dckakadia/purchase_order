@@ -74,6 +74,12 @@
       Sales Invoices
     </div>
     {% endif %}
+    {% if 'supplier_books' in user_permissions %}
+    <div class="sb-item" onclick="window.location.href='/purchase-invoice'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h14v2L9 7v7l-2-1-2 1V7L1 3zm12 1.5H3l4 2.8v6.4l1 .5 1-.5V5.3z"/></svg>
+      Purchase Invoices
+    </div>
+    {% endif %}
 
     {% if 'forwarder_dashboard' in user_permissions %}
     <div class="sb-group" style="margin-top: 15px;">LOGISTICS</div>
@@ -496,6 +502,11 @@ async function editVoucher(eid) {
     const data = await r.json();
     const e = data.entries.find(x => x.id === eid);
     if(!e) return;
+
+    if (e.entry_type === 'INVOICE') {
+        window.location.href = `/purchase-invoice?edit_id=${e.id}`;
+        return;
+    }
     
     document.getElementById('voucherForm').reset();
     document.getElementById('v_id').value = e.id;

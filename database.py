@@ -389,6 +389,40 @@ def init_db():
             )
         """)
 
+        # ── SUPPLIER INVOICES TABLE ───────────────────────────────────────────
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS supplier_invoices (
+                id              TEXT PRIMARY KEY,
+                supplier_id     TEXT NOT NULL,
+                invoice_no      TEXT,
+                invoice_date    TEXT NOT NULL,
+                due_date        TEXT,
+                subtotal        REAL DEFAULT 0.0,
+                tax_rate        REAL DEFAULT 0.0,
+                tax_amount      REAL DEFAULT 0.0,
+                discount_amount REAL DEFAULT 0.0,
+                grand_total     REAL DEFAULT 0.0,
+                description     TEXT,
+                created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
+                created_by      TEXT DEFAULT 'User',
+                FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE
+            )
+        """)
+
+        # ── SUPPLIER INVOICE ITEMS TABLE ──────────────────────────────────────
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS supplier_invoice_items (
+                id           TEXT PRIMARY KEY,
+                invoice_id   TEXT NOT NULL,
+                item_id      TEXT,
+                description  TEXT,
+                qty          REAL DEFAULT 1.0,
+                unit_price   REAL DEFAULT 0.0,
+                total_price  REAL DEFAULT 0.0,
+                FOREIGN KEY(invoice_id) REFERENCES supplier_invoices(id) ON DELETE CASCADE
+            )
+        """)
+
         # ── CUSTOMERS TABLE ─────────────────────────────────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS customers (
@@ -581,6 +615,8 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sle_entry_date ON supplier_ledger_entries(entry_date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sle_entry_type ON supplier_ledger_entries(entry_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sle_deleted_at ON supplier_ledger_entries(deleted_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sinv_supplier_id ON supplier_invoices(supplier_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sinvi_invoice_id ON supplier_invoice_items(invoice_id)")
 
         # Customer indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name)")
@@ -650,6 +686,8 @@ def init_default_settings(conn):
         "po_sequence": "0",
         "inv_prefix": "INV",
         "inv_sequence": "0",
+        "pinv_prefix": "PINV",
+        "pinv_sequence": "0",
     }
 
     for key, value in defaults.items():
