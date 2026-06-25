@@ -577,6 +577,7 @@ def init_db():
         # Migrate existing shipment_po_link rows (safe — no-op if columns already exist)
         _safe_add_column(cursor, "shipment_po_link", "qty_shipped", "REAL DEFAULT 0")
         _safe_add_column(cursor, "shipment_po_link", "part_no",     "INTEGER DEFAULT 1")
+        _safe_add_column(cursor, "shipment_po_link", "items_json",  "TEXT DEFAULT '[]'")
 
         # ── SHIPMENTS updated_at TRIGGER ─────────────────────────────────────────
         cursor.execute("""

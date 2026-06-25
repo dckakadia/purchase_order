@@ -5366,7 +5366,7 @@ def _get_shipment_with_details(cursor, shipment_id):
     # Fetch linked POs with part-load fields
     cursor.execute("""
         SELECT po.id, po.po_number, po.status, po.supplier_snapshot,
-               spl.qty_shipped, spl.part_no,
+               spl.qty_shipped, spl.part_no, spl.items_json,
                (SELECT SUM(pi.qty) FROM po_items pi WHERE pi.po_id = po.id) AS total_po_qty
         FROM shipment_po_link spl
         JOIN purchase_orders po ON po.id = spl.po_id
@@ -5380,7 +5380,7 @@ def _get_shipment_with_details(cursor, shipment_id):
         po_ids = [p["id"] for p in linked_pos]
         placeholders = ",".join("?" * len(po_ids))
         cursor.execute(f"""
-            SELECT po_id, item_name, qty, unit, line_sequence
+            SELECT po_id, item_id, item_name, qty, unit, line_sequence
             FROM po_items
             WHERE po_id IN ({placeholders})
             ORDER BY po_id, line_sequence
@@ -5388,12 +5388,16 @@ def _get_shipment_with_details(cursor, shipment_id):
         items_by_po = {}
         for row in cursor.fetchall():
             items_by_po.setdefault(row["po_id"], []).append({
+                "item_id": row["item_id"],
                 "item_name": row["item_name"],
                 "qty": row["qty"],
                 "unit": row["unit"] or "PCS"
             })
         for p in linked_pos:
             p["items"] = items_by_po.get(p["id"], [])
+            # Parse the items selected for THIS shipment
+            p["shipped_items"] = json.loads(p.get("items_json") or "[]")
+            del p["items_json"]  # don't expose raw JSON
 
     ship["linked_pos"] = linked_pos
     return ship
@@ -5768,14 +5772,17 @@ def add_shipment_note(sid):
 @app.route("/api/shipments/<sid>/link-po", methods=["POST"])
 @require_permission("forwarder_edit")
 def link_po(sid):
-    """Link a purchase order to a shipment with optional part-load qty tracking."""
+    """Link a purchase order to a shipment with per-item part-load tracking."""
     req = request.get_json(silent=True)
     if not req or not req.get("po_id"):
         return jsonify({"error": "po_id is required"}), 400
 
     po_id = req["po_id"]
-    qty_shipped = float(req.get("qty_shipped") or 0)
     part_no = int(req.get("part_no") or 1)
+    # items: [{item_id, item_name, qty, unit}, ...]
+    items = req.get("items") or []
+    qty_shipped = sum(float(i.get("qty") or 0) for i in items) if items else float(req.get("qty_shipped") or 0)
+    items_json = json.dumps(items)
 
     try:
         with get_db() as conn:
@@ -5787,7 +5794,7 @@ def link_po(sid):
             if not cursor.fetchone():
                 return jsonify({"error": "PO not found"}), 404
 
-            # Auto-assign part_no if not provided: next part number for this PO
+            # Auto-assign part_no: next part number for this PO
             if part_no <= 1:
                 cursor.execute("""
                     SELECT COALESCE(MAX(spl.part_no), 0) + 1
@@ -5798,11 +5805,10 @@ def link_po(sid):
                 part_no = cursor.fetchone()[0] or 1
 
             cursor.execute("""
-                INSERT OR IGNORE INTO shipment_po_link (id, shipment_id, po_id, qty_shipped, part_no)
-                VALUES (?, ?, ?, ?, ?)
-            """, (str(uuid.uuid4()), sid, po_id, qty_shipped, part_no))
+                INSERT OR IGNORE INTO shipment_po_link (id, shipment_id, po_id, qty_shipped, part_no, items_json)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (str(uuid.uuid4()), sid, po_id, qty_shipped, part_no, items_json))
 
-            # Recalculate PO partial-load status
             _update_po_partial_status(cursor, po_id)
 
         with get_db() as conn:
@@ -5841,20 +5847,22 @@ def unlink_po(sid):
 @app.route("/api/shipments/<sid>/link-po", methods=["PUT"])
 @require_permission("forwarder_edit")
 def update_link_po(sid):
-    """Update qty_shipped (and optionally part_no) for an existing PO-shipment link."""
+    """Update per-item shipped quantities for an existing PO-shipment link."""
     req = request.get_json(silent=True)
     if not req or not req.get("po_id"):
         return jsonify({"error": "po_id is required"}), 400
 
     po_id = req["po_id"]
-    qty_shipped = float(req.get("qty_shipped") or 0)
+    items = req.get("items") or []
+    qty_shipped = sum(float(i.get("qty") or 0) for i in items) if items else float(req.get("qty_shipped") or 0)
+    items_json = json.dumps(items)
 
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            UPDATE shipment_po_link SET qty_shipped = ?
+            UPDATE shipment_po_link SET qty_shipped = ?, items_json = ?
             WHERE shipment_id = ? AND po_id = ?
-        """, (qty_shipped, sid, po_id))
+        """, (qty_shipped, items_json, sid, po_id))
         _update_po_partial_status(cursor, po_id)
 
     with get_db() as conn:

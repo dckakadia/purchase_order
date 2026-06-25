@@ -1023,23 +1023,53 @@ function editShipment(id) {
         const qtyVal = linkData?.qty_shipped || 0;
         const totalQty = (p.line_items||[]).reduce((s,li)=>s+(li.qty||0),0);
 
-        // Items table for this PO
-        const itemRows = (p.line_items||[]).map(li => `
-          <tr>
-            <td style="padding:3px 8px;color:var(--text2)">${esc(li.item_name)}</td>
-            <td style="padding:3px 8px;color:var(--cyan);text-align:right;white-space:nowrap">${li.qty} ${esc(li.unit||'PCS')}</td>
-          </tr>`).join('');
+        // Previously saved per-item selection for this PO in this shipment
+        const savedItems = (linkData?.shipped_items || []);
+        const savedMap = {};
+        savedItems.forEach(si => { savedMap[si.item_name] = si.qty; });
+
+        // Interactive per-item rows: checkbox + qty input per line item
+        const itemRows = (p.line_items||[]).map((li, idx) => {
+          const savedQty = savedMap[li.item_name] !== undefined ? savedMap[li.item_name] : '';
+          const isSelected = savedQty !== '';
+          return `
+            <tr id="item-row-${p.id}-${idx}">
+              <td style="padding:4px 8px;width:24px">
+                <input type="checkbox" id="item-chk-${p.id}-${idx}"
+                  ${isSelected ? 'checked' : ''}
+                  onchange="toggleItemQty('${p.id}','${idx}', this.checked)">
+              </td>
+              <td style="padding:4px 8px;color:var(--text2)">${esc(li.item_name)}</td>
+              <td style="padding:4px 8px;color:var(--text3);text-align:right;white-space:nowrap;font-size:11px">PO: ${li.qty} ${esc(li.unit||'PCS')}</td>
+              <td style="padding:4px 8px;text-align:right">
+                <input type="number" min="0" step="any"
+                  id="item-qty-${p.id}-${idx}"
+                  data-po="${p.id}" data-item="${esc(li.item_name)}" data-unit="${esc(li.unit||'PCS')}"
+                  value="${savedQty}"
+                  placeholder="0"
+                  ${isSelected ? '' : 'disabled'}
+                  style="width:80px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border2);border-radius:5px;color:#fff;font-size:12px;opacity:${isSelected?1:0.4}"
+                  oninput="updatePartTotal('${p.id}')">
+              </td>
+            </tr>`;
+        }).join('');
 
         const itemsTable = itemRows ? `
-          <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;background:rgba(0,0,0,.2);border-radius:6px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;background:rgba(0,0,0,.2);border-radius:6px;overflow:hidden">
             <thead>
               <tr style="color:var(--text3)">
+                <th style="padding:4px 8px"></th>
                 <th style="padding:4px 8px;text-align:left;font-weight:500">Item</th>
                 <th style="padding:4px 8px;text-align:right;font-weight:500">PO Qty</th>
+                <th style="padding:4px 8px;text-align:right;font-weight:500">Ship Qty</th>
               </tr>
             </thead>
             <tbody>${itemRows}</tbody>
-          </table>` : '';
+          </table>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;color:var(--text3)">
+            Total in this shipment: <strong id="part-total-${p.id}" style="color:var(--cyan)">${qtyVal||0}</strong>
+            ${totalQty > 0 ? `/ ${totalQty} total pcs` : ''}
+          </div>` : '';
 
         return `
           <div class="po-check-item" style="flex-wrap:wrap;gap:4px">
@@ -1049,16 +1079,6 @@ function editShipment(id) {
             <span class="pc-status" style="${SC[p.status]||'color:var(--text2)'}">${p.status}</span>
             <div id="qty-wrap-${p.id}" style="display:${linked?'block':'none'};width:100%;margin-top:6px;padding:8px;background:rgba(0,0,0,.15);border-radius:6px;border:1px solid var(--border1)">
               ${itemsTable}
-              <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-                <span style="font-size:11px;color:var(--text3)">Qty in this shipment:</span>
-                <input type="number" min="0" step="any"
-                  id="qty_shipped_${p.id}"
-                  name="qty_shipped_${p.id}"
-                  value="${qtyVal}"
-                  placeholder="0"
-                  style="width:90px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:#fff;font-size:12px">
-                ${totalQty > 0 ? `<span style="font-size:11px;color:var(--text3)">/ ${totalQty} total pcs</span>` : ''}
-              </div>
             </div>
           </div>
         `;
@@ -1091,17 +1111,14 @@ async function saveShipment(e) {
   });
 
   if (res.ok) {
-    // Update qty_shipped for each linked PO
+    // Update per-item shipped quantities for each linked PO
     for (const pid of poIds) {
-      const qtyInput = document.getElementById(`qty_shipped_${pid}`);
-      if (qtyInput) {
-        const qty = parseFloat(qtyInput.value) || 0;
-        await fetch(`/api/shipments/${id}/link-po`, {
-          method: 'PUT',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ po_id: pid, qty_shipped: qty })
-        });
-      }
+      const items = collectPartItems(pid);
+      await fetch(`/api/shipments/${id}/link-po`, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ po_id: pid, items })
+      });
     }
     toast('Shipment updated ✓');
     closeModal('shipmentOverlay');
@@ -1110,6 +1127,46 @@ async function saveShipment(e) {
     const err = await res.json().catch(()=>({}));
     toast(err.error||'Failed to save','err');
   }
+}
+
+// Collect selected items + their ship-qty inputs for a given PO
+function collectPartItems(poId) {
+  const inputs = document.querySelectorAll(`input[data-po="${poId}"]`);
+  const items = [];
+  inputs.forEach(inp => {
+    const chkId = inp.id.replace('item-qty-', 'item-chk-');
+    const chk = document.getElementById(chkId);
+    if (chk && chk.checked) {
+      const qty = parseFloat(inp.value) || 0;
+      if (qty > 0) {
+        items.push({ item_name: inp.dataset.item, qty, unit: inp.dataset.unit });
+      }
+    }
+  });
+  return items;
+}
+
+// Toggle qty input enabled/opacity when item checkbox changes
+function toggleItemQty(poId, idx, enabled) {
+  const inp = document.getElementById(`item-qty-${poId}-${idx}`);
+  if (!inp) return;
+  inp.disabled = !enabled;
+  inp.style.opacity = enabled ? '1' : '0.4';
+  if (!enabled) inp.value = '';
+  updatePartTotal(poId);
+}
+
+// Live-update the total displayed under the items table
+function updatePartTotal(poId) {
+  const inputs = document.querySelectorAll(`input[data-po="${poId}"]`);
+  let total = 0;
+  inputs.forEach(inp => {
+    const chkId = inp.id.replace('item-qty-', 'item-chk-');
+    const chk = document.getElementById(chkId);
+    if (chk && chk.checked) total += parseFloat(inp.value) || 0;
+  });
+  const el = document.getElementById(`part-total-${poId}`);
+  if (el) el.textContent = total;
 }
 
 function togglePoQtyInput(poId, show) {
@@ -1160,11 +1217,16 @@ function openDrawer(id) {
            </div>`
         : '';
 
-      // Items sub-table
-      const itemRows = (p.items || []).map(it => `
+      // Show items selected for THIS shipment (shipped_items), fallback to all PO items
+      const displayItems = (p.shipped_items && p.shipped_items.length)
+        ? p.shipped_items
+        : (p.items || []);
+      const isPartial = !!(p.shipped_items && p.shipped_items.length);
+
+      const itemRows = displayItems.map(it => `
         <tr>
           <td style="padding:3px 8px;color:var(--text2)">${esc(it.item_name)}</td>
-          <td style="padding:3px 8px;color:var(--cyan);text-align:right;white-space:nowrap">${it.qty} ${esc(it.unit)}</td>
+          <td style="padding:3px 8px;color:var(--cyan);text-align:right;white-space:nowrap">${it.qty} ${esc(it.unit||'PCS')}</td>
         </tr>
       `).join('');
 
@@ -1172,8 +1234,8 @@ function openDrawer(id) {
         ? `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;background:rgba(0,0,0,.15);border-radius:6px;overflow:hidden">
             <thead>
               <tr style="color:var(--text3)">
-                <th style="padding:4px 8px;text-align:left;font-weight:500">Item</th>
-                <th style="padding:4px 8px;text-align:right;font-weight:500">PO Qty</th>
+                <th style="padding:4px 8px;text-align:left;font-weight:500">${isPartial ? 'Item (this shipment)' : 'Item'}</th>
+                <th style="padding:4px 8px;text-align:right;font-weight:500">Qty</th>
               </tr>
             </thead>
             <tbody>${itemRows}</tbody>
