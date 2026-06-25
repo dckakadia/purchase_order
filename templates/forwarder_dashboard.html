@@ -989,9 +989,10 @@ async function updateStatus(e, id) {
 }
 
 // ─── Edit modal ───────────────────────────────────────────────────────────────
-function editShipment(id) {
+async function editShipment(id) {
   const s = shipments.find(x=>x.id===id);
   if (!s) return;
+  currentShipment = s;
 
   document.getElementById('shipmentId').value = s.id;
   document.getElementById('s_forwarder_id').value = s.forwarder_id;
@@ -1003,7 +1004,21 @@ function editShipment(id) {
   document.getElementById('s_status').value = s.status;
   document.getElementById('s_notes').value = '';
 
-  // Eligible POs: all non-cancelled + already-linked ones
+  // Open modal early with loading indicator while fetching part-load summaries
+  document.getElementById('po-selector').innerHTML = '<div style="padding:8px;color:var(--text3);font-size:11px">Loading part-load data…</div>';
+  document.getElementById('shipmentOverlay').classList.add('open');
+
+  // Fetch shipment-summary for each linked PO to show "already shipped in other parts"
+  const summaryMap = {};
+  await Promise.all(
+    s.linked_pos.map(async (lp) => {
+      try {
+        const r = await fetch(`/api/po/${lp.id}/shipment-summary`);
+        if (r.ok) summaryMap[lp.id] = await r.json();
+      } catch(e) {}
+    })
+  );
+
   const eligible = allPOs.filter(p =>
     p.status !== 'Cancelled' || s.linked_pos.some(lp=>lp.id===p.id)
   );
@@ -1021,17 +1036,27 @@ function editShipment(id) {
         const linked = !!linkData;
         const sup = p.supplier_snapshot?.company||p.supplier_snapshot?.name||'?';
         const qtyVal = linkData?.qty_shipped || 0;
-        const totalQty = (p.line_items||[]).reduce((s,li)=>s+(li.qty||0),0);
+        const totalQty = (p.line_items||[]).reduce((acc,li)=>acc+(li.qty||0),0);
+        const summary = summaryMap[p.id];
 
-        // Previously saved per-item selection for this PO in this shipment
         const savedItems = (linkData?.shipped_items || []);
         const savedMap = {};
         savedItems.forEach(si => { savedMap[si.item_name] = si.qty; });
 
-        // Interactive per-item rows: checkbox + qty input per line item
         const itemRows = (p.line_items||[]).map((li, idx) => {
           const savedQty = savedMap[li.item_name] !== undefined ? savedMap[li.item_name] : '';
           const isSelected = savedQty !== '';
+
+          // Qty already shipped in OTHER part-loads (excluding this shipment's contribution)
+          let otherParts = 0;
+          if (summary) {
+            const rem = summary.remaining_items?.find(r => r.item_name === li.item_name);
+            if (rem) {
+              const thisPartQty = parseFloat(savedQty) || 0;
+              otherParts = Math.max(0, (rem.shipped_so_far || 0) - thisPartQty);
+            }
+          }
+
           return `
             <tr id="item-row-${p.id}-${idx}">
               <td style="padding:4px 8px;width:24px">
@@ -1040,7 +1065,10 @@ function editShipment(id) {
                   onchange="toggleItemQty('${p.id}','${idx}', this.checked)">
               </td>
               <td style="padding:4px 8px;color:var(--text2)">${esc(li.item_name)}</td>
-              <td style="padding:4px 8px;color:var(--text3);text-align:right;white-space:nowrap;font-size:11px">PO: ${li.qty} ${esc(li.unit||'PCS')}</td>
+              <td style="padding:4px 8px;color:var(--text3);text-align:right;white-space:nowrap;font-size:11px">
+                PO: ${li.qty} ${esc(li.unit||'PCS')}
+                ${otherParts > 0 ? `<br><span style="color:var(--orange);font-size:10px">+${otherParts} in other parts</span>` : ''}
+              </td>
               <td style="padding:4px 8px;text-align:right">
                 <input type="number" min="0" step="any"
                   id="item-qty-${p.id}-${idx}"
@@ -1060,8 +1088,8 @@ function editShipment(id) {
               <tr style="color:var(--text3)">
                 <th style="padding:4px 8px"></th>
                 <th style="padding:4px 8px;text-align:left;font-weight:500">Item</th>
-                <th style="padding:4px 8px;text-align:right;font-weight:500">PO Qty</th>
-                <th style="padding:4px 8px;text-align:right;font-weight:500">Ship Qty</th>
+                <th style="padding:4px 8px;text-align:right;font-weight:500">PO Qty / Other Parts</th>
+                <th style="padding:4px 8px;text-align:right;font-weight:500">This Shipment</th>
               </tr>
             </thead>
             <tbody>${itemRows}</tbody>
@@ -1084,8 +1112,6 @@ function editShipment(id) {
         `;
       }).join('')
     : '<div style="font-size:11px;color:var(--text3);padding:8px">No POs available</div>';
-
-  document.getElementById('shipmentOverlay').classList.add('open');
 }
 
 async function saveShipment(e) {
@@ -1093,8 +1119,12 @@ async function saveShipment(e) {
   const id = document.getElementById('shipmentId').value;
   if (!id) { toast('No shipment selected','err'); return; }
 
-  const poIds = [...document.querySelectorAll('input[name="po_ids"]:checked')].map(c=>c.value);
+  // Diff prev vs current linked POs — manage links separately to preserve items_json
+  const s = shipments.find(x=>x.id===id);
+  const prevLinkedIds = new Set((s?.linked_pos||[]).map(lp=>lp.id));
+  const currentPoIds = new Set([...document.querySelectorAll('input[name="po_ids"]:checked')].map(c=>c.value));
 
+  // Step 1: Save shipment metadata only — no po_ids so existing links are untouched
   const res = await fetch(`/api/shipments/${id}`, {
     method:'PUT', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
@@ -1105,28 +1135,41 @@ async function saveShipment(e) {
       expected_arrival: document.getElementById('s_expected_arrival').value,
       actual_arrival: document.getElementById('s_actual_arrival').value,
       status: document.getElementById('s_status').value,
-      po_ids: poIds,
       notes: document.getElementById('s_notes').value,
     })
   });
 
-  if (res.ok) {
-    // Update per-item shipped quantities for each linked PO
-    for (const pid of poIds) {
-      const items = collectPartItems(pid);
-      await fetch(`/api/shipments/${id}/link-po`, {
-        method: 'PUT',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ po_id: pid, items })
-      });
-    }
-    toast('Shipment updated ✓');
-    closeModal('shipmentOverlay');
-    await refresh();
-  } else {
+  if (!res.ok) {
     const err = await res.json().catch(()=>({}));
     toast(err.error||'Failed to save','err');
+    return;
   }
+
+  // Step 2: Create new links or update existing ones with correct items
+  for (const pid of currentPoIds) {
+    const items = collectPartItems(pid);
+    const method = prevLinkedIds.has(pid) ? 'PUT' : 'POST';
+    await fetch(`/api/shipments/${id}/link-po`, {
+      method,
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ po_id: pid, items })
+    });
+  }
+
+  // Step 3: Remove POs that were unchecked
+  for (const pid of prevLinkedIds) {
+    if (!currentPoIds.has(pid)) {
+      await fetch(`/api/shipments/${id}/unlink-po`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ po_id: pid })
+      });
+    }
+  }
+
+  toast('Shipment updated ✓');
+  closeModal('shipmentOverlay');
+  await refresh();
 }
 
 // Collect selected items + their ship-qty inputs for a given PO
