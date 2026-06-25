@@ -5373,7 +5373,29 @@ def _get_shipment_with_details(cursor, shipment_id):
         WHERE spl.shipment_id = ? AND po.deleted_at IS NULL
         ORDER BY spl.part_no, po.po_number
     """, (shipment_id,))
-    ship["linked_pos"] = [dict(r) for r in cursor.fetchall()]
+    linked_pos = [dict(r) for r in cursor.fetchall()]
+
+    # Fetch all line items for those POs in one query
+    if linked_pos:
+        po_ids = [p["id"] for p in linked_pos]
+        placeholders = ",".join("?" * len(po_ids))
+        cursor.execute(f"""
+            SELECT po_id, item_name, qty, unit, line_sequence
+            FROM po_items
+            WHERE po_id IN ({placeholders})
+            ORDER BY po_id, line_sequence
+        """, po_ids)
+        items_by_po = {}
+        for row in cursor.fetchall():
+            items_by_po.setdefault(row["po_id"], []).append({
+                "item_name": row["item_name"],
+                "qty": row["qty"],
+                "unit": row["unit"] or "PCS"
+            })
+        for p in linked_pos:
+            p["items"] = items_by_po.get(p["id"], [])
+
+    ship["linked_pos"] = linked_pos
     return ship
 
 
