@@ -567,11 +567,16 @@ def init_db():
                 id          TEXT PRIMARY KEY,
                 shipment_id TEXT NOT NULL,
                 po_id       TEXT NOT NULL,
+                qty_shipped REAL DEFAULT 0,
+                part_no     INTEGER DEFAULT 1,
                 UNIQUE (shipment_id, po_id),
                 FOREIGN KEY (shipment_id) REFERENCES shipments(id) ON DELETE CASCADE,
                 FOREIGN KEY (po_id) REFERENCES purchase_orders(id) ON DELETE CASCADE
             )
         """)
+        # Migrate existing shipment_po_link rows (safe — no-op if columns already exist)
+        _safe_add_column(cursor, "shipment_po_link", "qty_shipped", "REAL DEFAULT 0")
+        _safe_add_column(cursor, "shipment_po_link", "part_no",     "INTEGER DEFAULT 1")
 
         # ── SHIPMENTS updated_at TRIGGER ─────────────────────────────────────────
         cursor.execute("""

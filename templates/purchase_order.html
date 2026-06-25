@@ -508,6 +508,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
     <div class="stat-card blue" id="sc-total" onclick="setPOFilter('all')" style="cursor:pointer" title="Show all POs"><div class="stat-val" id="po-count-total">—</div><div class="stat-label">Total</div></div>
     <div class="stat-card yellow" id="sc-draft" onclick="setPOFilter('Draft')" style="cursor:pointer" title="Show Draft POs"><div class="stat-val" id="po-count-draft">—</div><div class="stat-label">Draft</div></div>
     <div class="stat-card purple" id="sc-confirmed" onclick="setPOFilter('Confirmed')" style="cursor:pointer" title="Show Confirmed POs"><div class="stat-val" id="po-count-confirmed">—</div><div class="stat-label">Confirmed</div></div>
+    <div class="stat-card orange" id="sc-partial" onclick="setPOFilter('Partially Shipped')" style="cursor:pointer" title="Part-loaded shipments"><div class="stat-val" id="po-count-partial">—</div><div class="stat-label">Part Load</div></div>
     <div class="stat-card cyan" id="sc-shipped" onclick="setPOFilter('Shipped')" style="cursor:pointer" title="Shipments in transit"><div class="stat-val" id="po-count-shipped">—</div><div class="stat-label">Shipped</div></div>
     <div class="stat-card teal" id="sc-in-transit" onclick="setPOFilter('In Transit')" style="cursor:pointer" title="In Transit to India"><div class="stat-val" id="po-count-in-transit">—</div><div class="stat-label">In Transit</div></div>
     <div class="stat-card green" id="sc-received" onclick="setPOFilter('Received')" style="cursor:pointer" title="Show Received POs"><div class="stat-val" id="po-count-received">—</div><div class="stat-label">Received</div></div>
@@ -1189,7 +1190,7 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
         <div class="form-group"><label>Status</label>
           <select id="po_status">
             <option value="Draft">Draft</option><option value="Confirmed">Confirmed</option>
-            <option value="Shipped">Shipped</option><option value="In Transit">In Transit</option><option value="Received">Received</option><option value="Cancelled">Cancelled</option>
+            <option value="Partially Shipped">Partially Shipped</option><option value="Shipped">Shipped</option><option value="In Transit">In Transit</option><option value="Received">Received</option><option value="Cancelled">Cancelled</option>
           </select>
         </div>
         <div class="form-group"><label>Lead Time (Days) · 交货期</label>
@@ -1373,7 +1374,7 @@ function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
 
 // ── Status badge ───────────────────────────────────────────────────────────
 function statusBadge(s){
-  const map = {Draft:'badge-yellow',Confirmed:'badge-purple',Shipped:'badge-cyan','In Transit':'badge-teal',Received:'badge-green',Cancelled:'badge-red'};
+  const map = {Draft:'badge-yellow',Confirmed:'badge-purple','Partially Shipped':'badge-orange',Shipped:'badge-cyan','In Transit':'badge-teal',Received:'badge-green',Cancelled:'badge-red'};
   return `<span class="badge ${map[s]||'badge-gray'}">${s||'Draft'}</span>`;
 }
 
@@ -1384,7 +1385,7 @@ let poSupplierFilter = null; // New global filter
 function setPOFilter(status){
   poStatusFilter = status;
   // update active highlight on stat cards
-  const map = {all:'sc-total', Draft:'sc-draft', Confirmed:'sc-confirmed', Shipped:'sc-shipped', 'In Transit':'sc-in-transit', Received:'sc-received'};
+  const map = {all:'sc-total', Draft:'sc-draft', Confirmed:'sc-confirmed', 'Partially Shipped':'sc-partial', Shipped:'sc-shipped', 'In Transit':'sc-in-transit', Received:'sc-received'};
   document.querySelectorAll('.stat-card').forEach(c=>c.classList.remove('filter-active'));
   const active = document.getElementById(map[status]);
   if(active) active.classList.add('filter-active');
@@ -1406,12 +1407,14 @@ function renderDashboard(){
   const total = pos.length;
   const draft = pos.filter(p=>p.status==='Draft').length;
   const conf  = pos.filter(p=>p.status==='Confirmed').length;
+  const partial = pos.filter(p=>p.status==='Partially Shipped').length;
   const ship  = pos.filter(p=>p.status==='Shipped').length;
   const transit = pos.filter(p=>p.status==='In Transit').length;
   const recv  = pos.filter(p=>p.status==='Received').length;
   document.getElementById('po-count-total').textContent= total;
   document.getElementById('po-count-draft').textContent= draft;
   document.getElementById('po-count-confirmed').textContent= conf;
+  document.getElementById('po-count-partial').textContent = partial;
   document.getElementById('po-count-shipped').textContent = ship;
   document.getElementById('po-count-in-transit').textContent = transit;
   document.getElementById('po-count-received').textContent = recv;

@@ -278,14 +278,14 @@ def _sync_shipment_from_po(cursor, po_id, po_status):
     """
     Automatically updates linked shipment status when a PO status changes.
     Rules:
-    - PO 'Shipped' -> Shipment 'Shipped' (if currently 'With Forwarder')
+    - PO 'Shipped'/'Partially Shipped' -> Shipment 'Shipped' (if currently 'With Forwarder')
     - PO 'In Transit' -> Shipment 'In Transit' (if currently Shipped/'With Forwarder')
-    - PO 'Received' -> Shipment 'Delivered' (if ALL POs in shipment are Received) or 'Arrived'
+    - PO 'Received' -> Shipment 'Delivered' (if ALL POs received) or 'Arrived'
     """
     try:
-        # Find the active shipment linked to this PO
+        # Find all active shipments linked to this PO
         cursor.execute("""
-            SELECT s.id, s.status, s.notes, s.actual_arrival 
+            SELECT s.id, s.status, s.notes, s.actual_arrival
             FROM shipments s
             JOIN shipment_po_link spl ON spl.shipment_id = s.id
             WHERE spl.po_id = ? AND s.deleted_at IS NULL
@@ -294,21 +294,21 @@ def _sync_shipment_from_po(cursor, po_id, po_status):
         for ship_row in ship_rows:
             sid = ship_row['id']
             current_ship_status = ship_row['status']
-            
+
             new_ship_status = None
-            
-            if po_status == 'Shipped':
+
+            if po_status in ('Shipped', 'Partially Shipped'):
                 if current_ship_status == 'With Forwarder':
                     new_ship_status = 'Shipped'
-            
+
             elif po_status == 'In Transit':
                 if current_ship_status in ['With Forwarder', 'Shipped']:
                     new_ship_status = 'In Transit'
-            
+
             elif po_status == 'Received':
                 # Check if ALL POs in this shipment are now 'Received'
                 cursor.execute("""
-                    SELECT COUNT(*) as total, 
+                    SELECT COUNT(*) as total,
                            SUM(CASE WHEN po.status = 'Received' THEN 1 ELSE 0 END) as received
                     FROM shipment_po_link spl
                     JOIN purchase_orders po ON po.id = spl.po_id
@@ -322,26 +322,71 @@ def _sync_shipment_from_po(cursor, po_id, po_status):
                         new_ship_status = 'Arrived'
 
             if new_ship_status and new_ship_status != current_ship_status:
-                # Add an auto-note to shipment
                 notes = json.loads(ship_row['notes'] or '[]')
                 notes.append({
                     "date": str(date.today()),
                     "author": "System Sync",
                     "text": f"Status auto-updated to {new_ship_status} (PO status changed to {po_status})"
                 })
-                
-                # Consolidate updates into one call
                 actual_arr = ship_row.get("actual_arrival")
                 if new_ship_status == "Delivered" and not actual_arr:
                     actual_arr = str(date.today())
-
                 cursor.execute("""
-                    UPDATE shipments 
-                    SET status = ?, notes = ?, actual_arrival = ?, updated_at = CURRENT_TIMESTAMP 
+                    UPDATE shipments
+                    SET status = ?, notes = ?, actual_arrival = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                 """, (new_ship_status, json.dumps(notes), actual_arr, sid))
     except Exception as e:
         print(f"Error syncing shipment from PO: {e}")
+
+
+def _update_po_partial_status(cursor, po_id):
+    """
+    After linking/unlinking a part-load shipment, recalculate whether the PO
+    should be 'Partially Shipped' or 'Shipped' based on qty_shipped vs total PO qty.
+
+    Only acts when PO is currently Confirmed, Partially Shipped, or Shipped.
+    """
+    try:
+        cursor.execute(
+            "SELECT status FROM purchase_orders WHERE id = ? AND deleted_at IS NULL", (po_id,)
+        )
+        row = cursor.fetchone()
+        if not row or row['status'] not in ('Confirmed', 'Partially Shipped', 'Shipped'):
+            return
+
+        # Total ordered qty across all line items
+        cursor.execute(
+            "SELECT COALESCE(SUM(qty), 0) AS total FROM po_items WHERE po_id = ?", (po_id,)
+        )
+        total_qty = float(cursor.fetchone()['total'] or 0)
+
+        # Total qty_shipped across all active shipments linked to this PO
+        cursor.execute("""
+            SELECT COALESCE(SUM(spl.qty_shipped), 0) AS shipped
+            FROM shipment_po_link spl
+            JOIN shipments s ON s.id = spl.shipment_id
+            WHERE spl.po_id = ? AND s.deleted_at IS NULL
+        """, (po_id,))
+        shipped_qty = float(cursor.fetchone()['shipped'] or 0)
+
+        if shipped_qty <= 0:
+            new_status = 'Confirmed'
+        elif total_qty > 0 and shipped_qty < total_qty:
+            new_status = 'Partially Shipped'
+        else:
+            new_status = 'Shipped'
+
+        current_status = row['status']
+        if new_status != current_status:
+            cursor.execute(
+                "UPDATE purchase_orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (new_status, po_id)
+            )
+            _log_status_change(cursor, po_id, current_status, new_status,
+                               note="Auto-updated from part-load qty calculation")
+    except Exception as e:
+        print(f"Error updating PO partial status: {e}")
 
 
 # ── SUPPLIER BOOKS HELPER FUNCTIONS ───────────────────────────────────────────
@@ -2500,7 +2545,7 @@ def supplier_analytics():
                     COUNT(po.id)    AS total_pos,
                     SUM(CASE WHEN po.status NOT IN ('Cancelled') THEN 1 ELSE 0 END)
                                     AS active_pos,
-                    SUM(CASE WHEN po.status = 'Shipped' THEN 1 ELSE 0 END)
+                    SUM(CASE WHEN po.status IN ('Partially Shipped','Shipped') THEN 1 ELSE 0 END)
                                     AS shipped_pos,
                     SUM(CASE WHEN po.status = 'In Transit' THEN 1 ELSE 0 END)
                                     AS in_transit_pos,
@@ -5318,13 +5363,15 @@ def _get_shipment_with_details(cursor, shipment_id):
     ship = dict(row)
     ship["notes"] = json.loads(ship.get("notes") or "[]")
 
-    # Fetch linked POs
+    # Fetch linked POs with part-load fields
     cursor.execute("""
-        SELECT po.id, po.po_number, po.status, po.supplier_snapshot
+        SELECT po.id, po.po_number, po.status, po.supplier_snapshot,
+               spl.qty_shipped, spl.part_no,
+               (SELECT SUM(pi.qty) FROM po_items pi WHERE pi.po_id = po.id) AS total_po_qty
         FROM shipment_po_link spl
         JOIN purchase_orders po ON po.id = spl.po_id
         WHERE spl.shipment_id = ? AND po.deleted_at IS NULL
-        ORDER BY po.po_number
+        ORDER BY spl.part_no, po.po_number
     """, (shipment_id,))
     ship["linked_pos"] = [dict(r) for r in cursor.fetchall()]
     return ship
@@ -5699,10 +5746,14 @@ def add_shipment_note(sid):
 @app.route("/api/shipments/<sid>/link-po", methods=["POST"])
 @require_permission("forwarder_edit")
 def link_po(sid):
-    """Link a purchase order to a shipment."""
+    """Link a purchase order to a shipment with optional part-load qty tracking."""
     req = request.get_json(silent=True)
     if not req or not req.get("po_id"):
         return jsonify({"error": "po_id is required"}), 400
+
+    po_id = req["po_id"]
+    qty_shipped = float(req.get("qty_shipped") or 0)
+    part_no = int(req.get("part_no") or 1)
 
     try:
         with get_db() as conn:
@@ -5710,14 +5761,27 @@ def link_po(sid):
             cursor.execute("SELECT id FROM shipments WHERE id = ? AND deleted_at IS NULL", (sid,))
             if not cursor.fetchone():
                 return jsonify({"error": "Shipment not found"}), 404
-            cursor.execute("SELECT id FROM purchase_orders WHERE id = ? AND deleted_at IS NULL", (req["po_id"],))
+            cursor.execute("SELECT id FROM purchase_orders WHERE id = ? AND deleted_at IS NULL", (po_id,))
             if not cursor.fetchone():
                 return jsonify({"error": "PO not found"}), 404
 
+            # Auto-assign part_no if not provided: next part number for this PO
+            if part_no <= 1:
+                cursor.execute("""
+                    SELECT COALESCE(MAX(spl.part_no), 0) + 1
+                    FROM shipment_po_link spl
+                    JOIN shipments s ON s.id = spl.shipment_id
+                    WHERE spl.po_id = ? AND s.deleted_at IS NULL
+                """, (po_id,))
+                part_no = cursor.fetchone()[0] or 1
+
             cursor.execute("""
-                INSERT OR IGNORE INTO shipment_po_link (id, shipment_id, po_id)
-                VALUES (?, ?, ?)
-            """, (str(uuid.uuid4()), sid, req["po_id"]))
+                INSERT OR IGNORE INTO shipment_po_link (id, shipment_id, po_id, qty_shipped, part_no)
+                VALUES (?, ?, ?, ?, ?)
+            """, (str(uuid.uuid4()), sid, po_id, qty_shipped, part_no))
+
+            # Recalculate PO partial-load status
+            _update_po_partial_status(cursor, po_id)
 
         with get_db() as conn:
             cursor = conn.cursor()
@@ -5733,7 +5797,7 @@ def link_po(sid):
 @app.route("/api/shipments/<sid>/unlink-po", methods=["POST"])
 @require_permission("forwarder_edit")
 def unlink_po(sid):
-    """Remove a PO link from a shipment."""
+    """Remove a PO link from a shipment and recalculate part-load status."""
     req = request.get_json(silent=True)
     if not req or not req.get("po_id"):
         return jsonify({"error": "po_id is required"}), 400
@@ -5746,7 +5810,35 @@ def unlink_po(sid):
             "DELETE FROM shipment_po_link WHERE shipment_id=? AND po_id=?",
             (sid, po_id)
         )
+        _update_po_partial_status(cursor, po_id)
     return jsonify({"ok": True})
+
+
+# ── PUT /api/shipments/<sid>/link-po ─────────────────────────────────────────
+
+@app.route("/api/shipments/<sid>/link-po", methods=["PUT"])
+@require_permission("forwarder_edit")
+def update_link_po(sid):
+    """Update qty_shipped (and optionally part_no) for an existing PO-shipment link."""
+    req = request.get_json(silent=True)
+    if not req or not req.get("po_id"):
+        return jsonify({"error": "po_id is required"}), 400
+
+    po_id = req["po_id"]
+    qty_shipped = float(req.get("qty_shipped") or 0)
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE shipment_po_link SET qty_shipped = ?
+            WHERE shipment_id = ? AND po_id = ?
+        """, (qty_shipped, sid, po_id))
+        _update_po_partial_status(cursor, po_id)
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        ship = _get_shipment_with_details(cursor, sid)
+    return jsonify(ship)
 
 
 # ── GET /api/dashboard-stats ──────────────────────────────────────────────────

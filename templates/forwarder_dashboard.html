@@ -575,8 +575,10 @@ let ganttChart = null;
 const STAGES = ["With Forwarder","Shipped","In Transit","Arrived","Under Clearance","Delivered"];
 
 const STATUS_BADGE = {
-  Draft:'badge-yellow', Confirmed:'badge-purple', Shipped:'badge-cyan',
-  'In Transit':'badge-orange', Received:'badge-green', Cancelled:'badge-red'
+  Draft:'badge-yellow', Confirmed:'badge-purple',
+  'Partially Shipped':'badge-orange',
+  Shipped:'badge-cyan', 'In Transit':'badge-orange',
+  Received:'badge-green', Cancelled:'badge-red'
 };
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -725,10 +727,11 @@ function renderTable() {
     const isSoon = days >= 0 && days <= 3 && s.status !== 'Delivered';
     const rowCls = isOver?'overdue':isSoon?'soon':s.status==='Delivered'?'delivered':'';
 
-    // PO chips — green dot if PO is active (Shipped/In Transit)
+    // PO chips — green dot if PO is active (Partially Shipped/Shipped/In Transit)
     const chips = s.linked_pos.map(p => {
-      const active = ['Shipped','In Transit'].includes(p.status);
-      return `<span class="po-chip ${active?'active':''}" title="PO ${p.po_number} · ${p.status}"><span class="dot"></span>${esc(p.po_number)}</span>`;
+      const active = ['Partially Shipped','Shipped','In Transit'].includes(p.status);
+      const qtyLabel = p.qty_shipped > 0 ? ` · ${p.qty_shipped} ${p.total_po_qty ? 'of '+p.total_po_qty : ''} pcs` : '';
+      return `<span class="po-chip ${active?'active':''}" title="PO ${p.po_number} · ${p.status}${qtyLabel}"><span class="dot"></span>${esc(p.po_number)}</span>`;
     }).join('');
 
     const lastNote = s.notes.length ? s.notes[s.notes.length-1] : null;
@@ -1007,19 +1010,34 @@ function editShipment(id) {
 
   const SC = {
     Draft:'color:var(--accent4)',Confirmed:'color:var(--accent3)',
+    'Partially Shipped':'color:var(--orange)',
     Shipped:'color:var(--cyan)','In Transit':'color:var(--orange)',
     Received:'color:var(--accent)',Cancelled:'color:var(--red)'
   };
 
   document.getElementById('po-selector').innerHTML = eligible.length
     ? eligible.map(p => {
-        const linked = s.linked_pos.some(lp=>lp.id===p.id);
+        const linkData = s.linked_pos.find(lp=>lp.id===p.id);
+        const linked = !!linkData;
         const sup = p.supplier_snapshot?.company||p.supplier_snapshot?.name||'?';
+        const qtyVal = linkData?.qty_shipped || 0;
+        const totalQty = linkData?.total_po_qty || '';
         return `
-          <div class="po-check-item">
-            <input type="checkbox" name="po_ids" value="${p.id}" id="poc_${p.id}" ${linked?'checked':''}>
+          <div class="po-check-item" style="flex-wrap:wrap;gap:4px">
+            <input type="checkbox" name="po_ids" value="${p.id}" id="poc_${p.id}" ${linked?'checked':''}
+              onchange="togglePoQtyInput('${p.id}', this.checked)">
             <label class="pc-label" for="poc_${p.id}">${esc(p.po_number)} <span style="color:var(--text2);font-size:11px">(${esc(sup)})</span></label>
             <span class="pc-status" style="${SC[p.status]||'color:var(--text2)'}">${p.status}</span>
+            <div id="qty-wrap-${p.id}" style="display:${linked?'flex':'none'};align-items:center;gap:6px;margin-left:auto;margin-top:4px;width:100%">
+              <span style="font-size:11px;color:var(--text3)">Qty in this shipment:</span>
+              <input type="number" min="0" step="any"
+                id="qty_shipped_${p.id}"
+                name="qty_shipped_${p.id}"
+                value="${qtyVal}"
+                placeholder="0"
+                style="width:80px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:#fff;font-size:12px">
+              ${totalQty ? `<span style="font-size:11px;color:var(--text3)">/ ${totalQty} total</span>` : ''}
+            </div>
           </div>
         `;
       }).join('')
@@ -1051,6 +1069,18 @@ async function saveShipment(e) {
   });
 
   if (res.ok) {
+    // Update qty_shipped for each linked PO
+    for (const pid of poIds) {
+      const qtyInput = document.getElementById(`qty_shipped_${pid}`);
+      if (qtyInput) {
+        const qty = parseFloat(qtyInput.value) || 0;
+        await fetch(`/api/shipments/${id}/link-po`, {
+          method: 'PUT',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ po_id: pid, qty_shipped: qty })
+        });
+      }
+    }
     toast('Shipment updated ✓');
     closeModal('shipmentOverlay');
     await refresh();
@@ -1058,6 +1088,11 @@ async function saveShipment(e) {
     const err = await res.json().catch(()=>({}));
     toast(err.error||'Failed to save','err');
   }
+}
+
+function togglePoQtyInput(poId, show) {
+  const wrap = document.getElementById(`qty-wrap-${poId}`);
+  if (wrap) wrap.style.display = show ? 'flex' : 'none';
 }
 
 // ─── Drawer ───────────────────────────────────────────────────────────────────
@@ -1080,20 +1115,61 @@ function openDrawer(id) {
     </div>
   `).join('');
 
-  // Linked POs
+  // Linked POs — part-load breakdown
   const poEl = document.getElementById('linked-pos-list');
   if (s.linked_pos.length) {
-    poEl.innerHTML = s.linked_pos.map(p => `
-      <div class="po-link-row">
-        <div>
-          <div class="po-link-num">${esc(p.po_number)}</div>
-          <div class="po-link-meta">
-            PO Status: <span class="badge ${STATUS_BADGE[p.status]||'badge-gray'}" style="font-size:9px;padding:2px 6px">${p.status}</span>
-          </div>
-        </div>
-        <button class="btn btn-ghost btn-xs" onclick="unlinkPO('${s.id}','${p.id}')">Unlink</button>
-      </div>
-    `).join('');
+    // Group by po_id to get total qty shipped across ALL shipments for each PO
+    const totalShipped = {};
+    shipments.forEach(sh => {
+      sh.linked_pos.forEach(lp => {
+        if (!totalShipped[lp.id]) totalShipped[lp.id] = 0;
+        totalShipped[lp.id] += (lp.qty_shipped || 0);
+      });
+    });
+
+    poEl.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="color:var(--text3);text-align:left">
+            <th style="padding:4px 6px;font-weight:500">PO #</th>
+            <th style="padding:4px 6px;font-weight:500">Part Qty</th>
+            <th style="padding:4px 6px;font-weight:500">Total Shipped / PO Qty</th>
+            <th style="padding:4px 6px;font-weight:500">PO Status</th>
+            <th style="padding:4px 6px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${s.linked_pos.map(p => {
+            const partQty = p.qty_shipped || 0;
+            const totalQty = p.total_po_qty || 0;
+            const allShipped = totalShipped[p.id] || 0;
+            const pct = totalQty > 0 ? Math.min(100, Math.round(allShipped / totalQty * 100)) : 0;
+            const bar = totalQty > 0
+              ? `<div style="margin-top:4px;background:var(--border2);border-radius:4px;height:4px;width:100%">
+                   <div style="width:${pct}%;background:${pct>=100?'var(--accent)':'var(--orange)'};height:4px;border-radius:4px;transition:width .3s"></div>
+                 </div>`
+              : '';
+            return `
+              <tr style="border-top:1px solid var(--border1)">
+                <td style="padding:6px 6px;font-weight:600;color:#fff">${esc(p.po_number)}</td>
+                <td style="padding:6px 6px;color:var(--cyan)">${partQty > 0 ? partQty+' pcs' : '—'}</td>
+                <td style="padding:6px 6px">
+                  <span style="color:${pct>=100?'var(--accent)':'var(--orange)'}">${allShipped}</span>
+                  ${totalQty > 0 ? `/ ${totalQty} <span style="color:var(--text3)">(${pct}%)</span>` : ''}
+                  ${bar}
+                </td>
+                <td style="padding:6px 6px">
+                  <span class="badge ${STATUS_BADGE[p.status]||'badge-gray'}" style="font-size:9px;padding:2px 6px">${p.status}</span>
+                </td>
+                <td style="padding:6px 6px">
+                  <button class="btn btn-ghost btn-xs" onclick="unlinkPO('${s.id}','${p.id}')">Unlink</button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
   } else {
     poEl.innerHTML = `<div style="font-size:11px;color:var(--text3)">No POs linked. Use Edit to link POs.</div>`;
   }
