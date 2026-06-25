@@ -337,20 +337,20 @@ select option{background:#111520;color:#fff;padding:8px}
   <div class="page-header">
     <div>
       <div class="page-title">Forwarder <span>Dashboard</span></div>
-      <div class="page-sub">Shipments auto-created &amp; synced from PO form · Track, update &amp; add notes here</div>
+      <div class="page-sub">Track shipments · update stages · split PO deliveries into part-loads</div>
     </div>
-    <!-- No "New Shipment" button — shipments are driven by the PO form -->
+    <button class="req-edit btn btn-primary" onclick="openNewShipmentModal()">+ New Shipment</button>
   </div>
 
   <!-- Auto-sync info bar -->
   <div class="sync-bar">
     <div class="sync-icon">🔗</div>
     <div class="sync-text">
-      <div class="sync-title">Auto-Sync Active</div>
+      <div class="sync-title">Part-Load Tracking</div>
       <div class="sync-sub">
-        Shipments are <strong style="color:#fff">created automatically</strong> when you assign a Forwarder to a PO and set status to <em>Confirmed</em> or higher in the PO form.
-        Shipment status also <strong style="color:#fff">updates automatically</strong> as PO status progresses (Shipped → In Transit → Received).
-        Use this dashboard to track, update stages manually, and add notes.
+        First shipment is <strong style="color:#fff">auto-created</strong> when a PO is set to Confirmed with a forwarder.
+        For split deliveries use <strong style="color:#fff">+ New Shipment</strong> above or the <strong style="color:#fff">Ship Remaining</strong> button in the drawer to create additional part-loads.
+        PO status updates automatically based on total qty shipped across all parts.
       </div>
     </div>
   </div>
@@ -523,6 +523,69 @@ select option{background:#111520;color:#fff;padding:8px}
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" onclick="closeModal('shipmentOverlay')">Cancel</button>
         <button type="submit" class="req-edit btn btn-primary">💾 Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     NEW SHIPMENT MODAL  (manual creation for part-loads)
+═══════════════════════════════════════════════════════════════ -->
+<div class="overlay" id="newShipmentOverlay">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title">+ New Shipment</div>
+    <button class="modal-close" onclick="closeModal('newShipmentOverlay')">✕</button>
+    <form id="newShipmentForm" onsubmit="createShipment(event)">
+      <div class="form-grid">
+        <div class="fg2 form-grid">
+          <div class="form-group">
+            <label>Forwarder *</label>
+            <select id="ns_forwarder_id" required></select>
+          </div>
+          <div class="form-group">
+            <label>Booking Reference</label>
+            <input type="text" id="ns_booking_ref" placeholder="BL / HBL / WhatsApp ref…">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Shipment Label / Description</label>
+          <input type="text" id="ns_description" placeholder="e.g. Part 2 of PO-2026-001">
+        </div>
+        <div class="fg2 form-grid">
+          <div class="form-group">
+            <label>Departure Date (China) *</label>
+            <input type="date" id="ns_departure_date" required>
+          </div>
+          <div class="form-group">
+            <label>Expected Arrival (India) *</label>
+            <input type="date" id="ns_expected_arrival" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="ns_status">
+            <option value="With Forwarder">With Forwarder</option>
+            <option value="Shipped" selected>Shipped</option>
+            <option value="In Transit">In Transit</option>
+            <option value="Arrived">Arrived</option>
+            <option value="Under Clearance">Under Clearance</option>
+            <option value="Delivered">Delivered</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Linked POs <span style="font-size:10px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--text3)">(tick = linked; select items for this part-load)</span></label>
+          <div id="ns-po-selector" style="max-height:220px;overflow-y:auto;border:1px solid var(--border2);padding:10px;border-radius:8px;background:rgba(0,0,0,.1)">
+            <div style="color:var(--text3);font-size:11px">Loading…</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notes <span style="font-size:10px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--text3)">(optional)</span></label>
+          <textarea id="ns_notes" placeholder="e.g. Part load — remaining items in next shipment…" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('newShipmentOverlay')">Cancel</button>
+        <button type="submit" class="btn btn-primary">+ Create Shipment</button>
       </div>
     </form>
   </div>
@@ -1260,43 +1323,75 @@ function openDrawer(id) {
            </div>`
         : '';
 
-      // Show items selected for THIS shipment (shipped_items), fallback to all PO items
-      const displayItems = (p.shipped_items && p.shipped_items.length)
-        ? p.shipped_items
-        : (p.items || []);
-      const isPartial = !!(p.shipped_items && p.shipped_items.length);
+      // Build per-item breakdown: PO Qty | This part | Other parts | Remaining
+      const poItems = p.items || [];
+      const thisPartMap = {};
+      (p.shipped_items || []).forEach(si => { thisPartMap[si.item_name] = si.qty; });
+      // "Other parts" = allShipped for this item minus this-part qty
+      const allShippedByItem = {};
+      shipments.forEach(sh => {
+        const lp2 = sh.linked_pos.find(lp => lp.id === p.id);
+        if (lp2) {
+          (lp2.shipped_items || []).forEach(si => {
+            allShippedByItem[si.item_name] = (allShippedByItem[si.item_name] || 0) + si.qty;
+          });
+        }
+      });
 
-      const itemRows = displayItems.map(it => `
-        <tr>
-          <td style="padding:3px 8px;color:var(--text2)">${esc(it.item_name)}</td>
-          <td style="padding:3px 8px;color:var(--cyan);text-align:right;white-space:nowrap">${it.qty} ${esc(it.unit||'PCS')}</td>
-        </tr>
-      `).join('');
+      const itemRows = poItems.map(it => {
+        const poQty = it.qty || 0;
+        const thisQty = thisPartMap[it.item_name] || 0;
+        const allQty = allShippedByItem[it.item_name] || 0;
+        const otherQty = Math.max(0, allQty - thisQty);
+        const rem = Math.max(0, poQty - allQty);
+        return `
+          <tr>
+            <td style="padding:3px 8px;color:var(--text2)">${esc(it.item_name)}</td>
+            <td style="padding:3px 8px;color:var(--text3);text-align:right">${poQty}</td>
+            <td style="padding:3px 8px;color:var(--cyan);text-align:right;font-weight:700">${thisQty > 0 ? thisQty : '—'}</td>
+            <td style="padding:3px 8px;color:var(--orange);text-align:right">${otherQty > 0 ? otherQty : '—'}</td>
+            <td style="padding:3px 8px;color:${rem>0?'var(--accent)':'var(--text3)'};text-align:right;font-weight:${rem>0?700:400}">${rem > 0 ? rem : '✓'}</td>
+          </tr>`;
+      }).join('');
 
       const itemsTable = itemRows
-        ? `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;background:rgba(0,0,0,.15);border-radius:6px;overflow:hidden">
+        ? `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:8px;background:rgba(0,0,0,.15);border-radius:6px;overflow:hidden">
             <thead>
               <tr style="color:var(--text3)">
-                <th style="padding:4px 8px;text-align:left;font-weight:500">${isPartial ? 'Item (this shipment)' : 'Item'}</th>
-                <th style="padding:4px 8px;text-align:right;font-weight:500">Qty</th>
+                <th style="padding:4px 8px;text-align:left;font-weight:500">Item</th>
+                <th style="padding:4px 8px;text-align:right;font-weight:500;white-space:nowrap">PO Qty</th>
+                <th style="padding:4px 8px;text-align:right;font-weight:500;white-space:nowrap">This Part</th>
+                <th style="padding:4px 8px;text-align:right;font-weight:500;white-space:nowrap">Other Parts</th>
+                <th style="padding:4px 8px;text-align:right;font-weight:500;white-space:nowrap">Remaining</th>
               </tr>
             </thead>
             <tbody>${itemRows}</tbody>
           </table>`
         : '';
 
+      const partBadge = p.part_no > 0
+        ? `<span style="background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--text2);margin-left:6px">Part ${p.part_no}</span>`
+        : '';
+      const remaining = Math.max(0, totalQty - allShipped);
+
       return `
         <div style="background:rgba(0,0,0,.15);border:1px solid var(--border1);border-radius:8px;padding:10px 12px;margin-bottom:8px">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-            <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
               <span style="font-weight:700;color:#fff;font-size:13px">${esc(p.po_number)}</span>
-              <span class="badge ${STATUS_BADGE[p.status]||'badge-gray'}" style="font-size:9px;padding:2px 6px;margin-left:6px">${p.status}</span>
+              ${partBadge}
+              <span class="badge ${STATUS_BADGE[p.status]||'badge-gray'}" style="font-size:9px;padding:2px 6px">${p.status}</span>
             </div>
-            <button class="btn btn-ghost btn-xs" onclick="unlinkPO('${s.id}','${p.id}')">Unlink</button>
+            <div style="display:flex;gap:6px;align-items:center">
+              ${p.status === 'Partially Shipped' && remaining > 0
+                ? `<button class="btn btn-green btn-xs" onclick="shipRemaining('${s.id}','${p.id}')">+ Ship Remaining</button>`
+                : ''}
+              <button class="btn btn-ghost btn-xs" onclick="unlinkPO('${s.id}','${p.id}')">Unlink</button>
+            </div>
           </div>
           <div style="display:flex;gap:16px;margin-top:6px;font-size:11px;color:var(--text2)">
-            <span>This shipment: <strong style="color:var(--cyan)">${partQty > 0 ? partQty+' pcs' : '—'}</strong></span>
-            <span>Total shipped: <strong style="color:${pct>=100?'var(--accent)':'var(--orange)'}">${allShipped}</strong>${totalQty > 0 ? ` / ${totalQty} pcs <span style="color:var(--text3)">(${pct}%)</span>` : ''}</span>
+            <span>This part: <strong style="color:var(--cyan)">${partQty > 0 ? partQty+' pcs' : '—'}</strong></span>
+            <span>Total: <strong style="color:${pct>=100?'var(--accent)':'var(--orange)'}">${allShipped}</strong>${totalQty > 0 ? ` / ${totalQty} pcs <span style="color:var(--text3)">(${pct}%)</span>` : ''}</span>
           </div>
           ${bar}
           ${itemsTable}
@@ -1390,6 +1485,192 @@ async function unlinkPO(sid, pid) {
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ─── New Shipment Modal ───────────────────────────────────────────────────────
+async function openNewShipmentModal(prefillPoId = null, prefillItems = null) {
+  const fwdSel = document.getElementById('ns_forwarder_id');
+  fwdSel.innerHTML = forwarders.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
+  document.getElementById('ns_booking_ref').value = '';
+  document.getElementById('ns_description').value = '';
+  document.getElementById('ns_departure_date').value = '';
+  document.getElementById('ns_expected_arrival').value = '';
+  document.getElementById('ns_status').value = 'Shipped';
+  document.getElementById('ns_notes').value = '';
+
+  if (prefillPoId) {
+    const po = allPOs.find(p => p.id === prefillPoId);
+    if (po) {
+      const existingParts = shipments.filter(s => s.linked_pos.some(lp=>lp.id===prefillPoId)).length;
+      document.getElementById('ns_description').value = `Part ${existingParts + 1} of ${po.po_number}`;
+    }
+  }
+
+  document.getElementById('ns-po-selector').innerHTML = '<div style="padding:8px;color:var(--text3);font-size:11px">Loading…</div>';
+  document.getElementById('newShipmentOverlay').classList.add('open');
+
+  const eligible = allPOs.filter(p => !['Cancelled', 'Received'].includes(p.status));
+  const summaryMap = {};
+  await Promise.all(eligible.filter(p => p.id === prefillPoId || p.status === 'Partially Shipped').map(async p => {
+    try {
+      const r = await fetch(`/api/po/${p.id}/shipment-summary`);
+      if (r.ok) summaryMap[p.id] = await r.json();
+    } catch(e) {}
+  }));
+
+  const preItemMap = {};
+  if (prefillItems) prefillItems.forEach(i => { preItemMap[i.item_name] = i.remaining; });
+
+  document.getElementById('ns-po-selector').innerHTML = eligible.length
+    ? eligible.map(p => {
+        const preSelected = p.id === prefillPoId;
+        const sup = p.supplier_snapshot?.company||p.supplier_snapshot?.name||'?';
+        const totalQty = (p.line_items||[]).reduce((acc,li)=>acc+(li.qty||0),0);
+        const summary = summaryMap[p.id];
+
+        const itemRows = (p.line_items||[]).map((li, idx) => {
+          const preQty = preSelected && (preItemMap[li.item_name]||0) > 0 ? preItemMap[li.item_name] : '';
+          const isSel = preQty !== '';
+          let shipped = 0;
+          if (summary) {
+            const rem = summary.remaining_items?.find(r => r.item_name === li.item_name);
+            if (rem) shipped = rem.shipped_so_far || 0;
+          }
+          return `
+            <tr>
+              <td style="padding:4px 8px;width:24px">
+                <input type="checkbox" id="ns-chk-${p.id}-${idx}" ${isSel?'checked':''}
+                  onchange="nsToggleItemQty('${p.id}','${idx}',this.checked)">
+              </td>
+              <td style="padding:4px 8px;color:var(--text2)">${esc(li.item_name)}</td>
+              <td style="padding:4px 8px;color:var(--text3);text-align:right;white-space:nowrap;font-size:11px">
+                PO: ${li.qty} ${esc(li.unit||'PCS')}
+                ${shipped>0?`<br><span style="color:var(--orange);font-size:10px">${shipped} shipped</span>`:''}
+              </td>
+              <td style="padding:4px 8px;text-align:right">
+                <input type="number" min="0" step="any"
+                  id="ns-qty-${p.id}-${idx}"
+                  data-po="${p.id}" data-item="${esc(li.item_name)}" data-unit="${esc(li.unit||'PCS')}"
+                  value="${preQty}" placeholder="0" ${isSel?'':'disabled'}
+                  style="width:80px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border2);border-radius:5px;color:#fff;font-size:12px;opacity:${isSel?1:0.4}"
+                  oninput="nsUpdatePartTotal('${p.id}')">
+              </td>
+            </tr>`;
+        }).join('');
+
+        const itemsTable = itemRows ? `
+          <table style="width:100%;border-collapse:collapse;font-size:11px;background:rgba(0,0,0,.2);border-radius:6px;overflow:hidden">
+            <thead><tr style="color:var(--text3)">
+              <th style="padding:4px 8px"></th>
+              <th style="padding:4px 8px;text-align:left;font-weight:500">Item</th>
+              <th style="padding:4px 8px;text-align:right;font-weight:500">PO Qty</th>
+              <th style="padding:4px 8px;text-align:right;font-weight:500">Ship Qty</th>
+            </tr></thead>
+            <tbody>${itemRows}</tbody>
+          </table>
+          <div style="margin-top:6px;font-size:11px;color:var(--text3)">
+            Total: <strong id="ns-total-${p.id}" style="color:var(--cyan)">0</strong>
+            ${totalQty?`/ ${totalQty} total`:''}
+          </div>` : '';
+
+        return `
+          <div class="po-check-item" style="flex-wrap:wrap;gap:4px">
+            <input type="checkbox" name="ns_po_ids" value="${p.id}" id="ns-poc-${p.id}" ${preSelected?'checked':''}
+              onchange="nsTogglePoQtyInput('${p.id}',this.checked)">
+            <label class="pc-label" for="ns-poc-${p.id}">${esc(p.po_number)} <span style="color:var(--text2);font-size:11px">(${esc(sup)})</span></label>
+            <span style="font-size:10px;color:var(--text3);margin-left:4px">${p.status}</span>
+            <div id="ns-wrap-${p.id}" style="display:${preSelected?'block':'none'};width:100%;margin-top:6px;padding:8px;background:rgba(0,0,0,.15);border-radius:6px;border:1px solid var(--border1)">
+              ${itemsTable}
+            </div>
+          </div>`;
+      }).join('')
+    : '<div style="font-size:11px;color:var(--text3)">No eligible POs</div>';
+
+  if (prefillPoId) setTimeout(()=>nsUpdatePartTotal(prefillPoId), 80);
+}
+
+function nsTogglePoQtyInput(poId, show) {
+  const w = document.getElementById(`ns-wrap-${poId}`);
+  if (w) w.style.display = show ? 'block' : 'none';
+}
+
+function nsToggleItemQty(poId, idx, enabled) {
+  const inp = document.getElementById(`ns-qty-${poId}-${idx}`);
+  if (!inp) return;
+  inp.disabled = !enabled;
+  inp.style.opacity = enabled ? '1' : '0.4';
+  if (!enabled) inp.value = '';
+  nsUpdatePartTotal(poId);
+}
+
+function nsUpdatePartTotal(poId) {
+  let total = 0;
+  document.querySelectorAll(`input[id^="ns-qty-${poId}-"]`).forEach(inp => {
+    const chk = document.getElementById(inp.id.replace('ns-qty-','ns-chk-'));
+    if (chk && chk.checked) total += parseFloat(inp.value) || 0;
+  });
+  const el = document.getElementById(`ns-total-${poId}`);
+  if (el) el.textContent = total;
+}
+
+function nsCollectPartItems(poId) {
+  const items = [];
+  document.querySelectorAll(`input[id^="ns-qty-${poId}-"]`).forEach(inp => {
+    const chk = document.getElementById(inp.id.replace('ns-qty-','ns-chk-'));
+    if (chk && chk.checked) {
+      const qty = parseFloat(inp.value) || 0;
+      if (qty > 0) items.push({ item_name: inp.dataset.item, qty, unit: inp.dataset.unit });
+    }
+  });
+  return items;
+}
+
+async function createShipment(e) {
+  e.preventDefault();
+  const poIds = [...document.querySelectorAll('input[name="ns_po_ids"]:checked')].map(c=>c.value);
+
+  const res = await fetch('/api/shipments', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      forwarder_id: document.getElementById('ns_forwarder_id').value,
+      booking_ref:  document.getElementById('ns_booking_ref').value,
+      description:  document.getElementById('ns_description').value,
+      departure_date: document.getElementById('ns_departure_date').value,
+      expected_arrival: document.getElementById('ns_expected_arrival').value,
+      status: document.getElementById('ns_status').value,
+      notes: document.getElementById('ns_notes').value,
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({}));
+    toast(err.error||'Failed to create shipment','err');
+    return;
+  }
+  const newShip = await res.json();
+
+  for (const pid of poIds) {
+    const items = nsCollectPartItems(pid);
+    await fetch(`/api/shipments/${newShip.id}/link-po`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ po_id: pid, items })
+    });
+  }
+
+  toast('Shipment created ✓');
+  closeModal('newShipmentOverlay');
+  await refresh();
+}
+
+async function shipRemaining(sid, pid) {
+  const r = await fetch(`/api/po/${pid}/shipment-summary`);
+  if (!r.ok) { toast('Failed to load PO summary','err'); return; }
+  const summary = await r.json();
+  const remaining = summary.remaining_items.filter(i => i.remaining > 0);
+  closeDrawer();
+  await openNewShipmentModal(pid, remaining);
+}
 
 function toast(msg, type='ok') {
   const a = document.getElementById('toastArea');
