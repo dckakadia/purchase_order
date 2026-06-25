@@ -1021,22 +1021,44 @@ function editShipment(id) {
         const linked = !!linkData;
         const sup = p.supplier_snapshot?.company||p.supplier_snapshot?.name||'?';
         const qtyVal = linkData?.qty_shipped || 0;
-        const totalQty = linkData?.total_po_qty || '';
+        const totalQty = (p.line_items||[]).reduce((s,li)=>s+(li.qty||0),0);
+
+        // Items table for this PO
+        const itemRows = (p.line_items||[]).map(li => `
+          <tr>
+            <td style="padding:3px 8px;color:var(--text2)">${esc(li.item_name)}</td>
+            <td style="padding:3px 8px;color:var(--cyan);text-align:right;white-space:nowrap">${li.qty} ${esc(li.unit||'PCS')}</td>
+          </tr>`).join('');
+
+        const itemsTable = itemRows ? `
+          <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;background:rgba(0,0,0,.2);border-radius:6px;overflow:hidden">
+            <thead>
+              <tr style="color:var(--text3)">
+                <th style="padding:4px 8px;text-align:left;font-weight:500">Item</th>
+                <th style="padding:4px 8px;text-align:right;font-weight:500">PO Qty</th>
+              </tr>
+            </thead>
+            <tbody>${itemRows}</tbody>
+          </table>` : '';
+
         return `
           <div class="po-check-item" style="flex-wrap:wrap;gap:4px">
             <input type="checkbox" name="po_ids" value="${p.id}" id="poc_${p.id}" ${linked?'checked':''}
               onchange="togglePoQtyInput('${p.id}', this.checked)">
             <label class="pc-label" for="poc_${p.id}">${esc(p.po_number)} <span style="color:var(--text2);font-size:11px">(${esc(sup)})</span></label>
             <span class="pc-status" style="${SC[p.status]||'color:var(--text2)'}">${p.status}</span>
-            <div id="qty-wrap-${p.id}" style="display:${linked?'flex':'none'};align-items:center;gap:6px;margin-left:auto;margin-top:4px;width:100%">
-              <span style="font-size:11px;color:var(--text3)">Qty in this shipment:</span>
-              <input type="number" min="0" step="any"
-                id="qty_shipped_${p.id}"
-                name="qty_shipped_${p.id}"
-                value="${qtyVal}"
-                placeholder="0"
-                style="width:80px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:#fff;font-size:12px">
-              ${totalQty ? `<span style="font-size:11px;color:var(--text3)">/ ${totalQty} total</span>` : ''}
+            <div id="qty-wrap-${p.id}" style="display:${linked?'block':'none'};width:100%;margin-top:6px;padding:8px;background:rgba(0,0,0,.15);border-radius:6px;border:1px solid var(--border1)">
+              ${itemsTable}
+              <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+                <span style="font-size:11px;color:var(--text3)">Qty in this shipment:</span>
+                <input type="number" min="0" step="any"
+                  id="qty_shipped_${p.id}"
+                  name="qty_shipped_${p.id}"
+                  value="${qtyVal}"
+                  placeholder="0"
+                  style="width:90px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:#fff;font-size:12px">
+                ${totalQty > 0 ? `<span style="font-size:11px;color:var(--text3)">/ ${totalQty} total pcs</span>` : ''}
+              </div>
             </div>
           </div>
         `;
@@ -1092,7 +1114,7 @@ async function saveShipment(e) {
 
 function togglePoQtyInput(poId, show) {
   const wrap = document.getElementById(`qty-wrap-${poId}`);
-  if (wrap) wrap.style.display = show ? 'flex' : 'none';
+  if (wrap) wrap.style.display = show ? 'block' : 'none';
 }
 
 // ─── Drawer ───────────────────────────────────────────────────────────────────
