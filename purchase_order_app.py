@@ -5432,108 +5432,156 @@ def _get_shipment_with_details(cursor, shipment_id):
 
 @app.route("/api/shipments/active-items", methods=["GET"])
 def get_active_shipments_items():
-    """Return all items for all active shipments, with unit prices calculated in INR."""
+    """Return items for all active shipments, respecting per-part-load item selection from items_json."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT value FROM settings WHERE key = 'default_usd_rate'")
         usd_rate_row = cursor.fetchone()
         usd_rate = float(usd_rate_row['value']) if usd_rate_row else 84.0
-        
+
         cursor.execute("SELECT value FROM settings WHERE key = 'default_rmb_rate'")
         rmb_rate_row = cursor.fetchone()
         rmb_rate = float(rmb_rate_row['value']) if rmb_rate_row else 11.5
-        
+
+        # Fetch all active shipment-PO links including items_json
         cursor.execute("""
-            SELECT 
+            SELECT
                 spl.shipment_id,
-                pi.item_name,
-                pi.qty,
-                pi.unit_price,
+                spl.items_json,
+                po.id AS po_id,
                 po.currency,
                 po.status,
                 po.po_number
             FROM shipment_po_link spl
             JOIN purchase_orders po ON po.id = spl.po_id
-            JOIN po_items pi ON pi.po_id = po.id
             JOIN shipments s ON s.id = spl.shipment_id
             WHERE po.deleted_at IS NULL AND s.deleted_at IS NULL
         """)
-        rows = cursor.fetchall()
-        
+        links = cursor.fetchall()
+
+        # Build price lookup per PO: {po_id: {item_name: unit_price}}
+        # and full fallback item list: {po_id: [{item_name, qty, unit_price, unit}]}
+        po_ids = list(set(r['po_id'] for r in links))
+        po_full_items = {}
+        for po_id in po_ids:
+            cursor.execute(
+                "SELECT item_name, qty, unit_price, unit FROM po_items WHERE po_id = ? ORDER BY line_sequence",
+                (po_id,)
+            )
+            po_full_items[po_id] = [dict(r) for r in cursor.fetchall()]
+
         result = {}
-        for row in rows:
-            sid = row['shipment_id']
+        for link in links:
+            sid = link['shipment_id']
+            po_id = link['po_id']
+            currency = link['currency'] or 'USD'
+            status = link['status']
+            po_number = link['po_number']
+            shipped_items = json.loads(link['items_json'] or '[]')
+
+            price_by_name = {it['item_name']: float(it['unit_price'] or 0) for it in po_full_items.get(po_id, [])}
+
+            if shipped_items:
+                # Use only the items that were explicitly selected for this part-load
+                items_to_show = shipped_items
+            else:
+                # Legacy link with no per-item selection: fall back to all PO items
+                items_to_show = [
+                    {'item_name': it['item_name'], 'qty': it['qty']}
+                    for it in po_full_items.get(po_id, [])
+                ]
+
             if sid not in result:
                 result[sid] = []
-            
-            # Calculate price in INR based on currency
-            currency = row['currency'] or 'USD'
-            price = float(row['unit_price'] or 0)
-            if currency == 'USD':
-                price_inr = round(price * usd_rate, 2)
-            elif currency == 'CNY':
-                price_inr = round(price * rmb_rate, 2)
-            else:
-                price_inr = price # Fallback
-                
-            result[sid].append({
-                "item_name": row['item_name'],
-                "qty": row['qty'],
-                "unit_price_inr": price_inr,
-                "status": row['status'],
-                "po_number": row['po_number']
-            })
-            
+
+            for item in items_to_show:
+                item_name = item.get('item_name', '')
+                price = price_by_name.get(item_name, 0.0)
+                if currency == 'USD':
+                    price_inr = round(price * usd_rate, 2)
+                elif currency == 'CNY':
+                    price_inr = round(price * rmb_rate, 2)
+                else:
+                    price_inr = price
+                result[sid].append({
+                    "item_name": item_name,
+                    "qty": item.get('qty', 0),
+                    "unit_price_inr": price_inr,
+                    "status": status,
+                    "po_number": po_number
+                })
+
     return jsonify(result)
 
 # ── GET /api/shipments/<sid>/items ────────────────────────────────────────────
 
 @app.route("/api/shipments/<sid>/items", methods=["GET"])
 def get_shipment_items(sid):
-    """Fetch all items from all POs linked to a shipment, with unit prices calculated in INR."""
+    """Fetch only the selected items for a shipment, respecting per-part-load items_json."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT value FROM settings WHERE key = 'default_usd_rate'")
         usd_rate_row = cursor.fetchone()
         usd_rate = float(usd_rate_row['value']) if usd_rate_row else 84.0
-        
+
         cursor.execute("SELECT value FROM settings WHERE key = 'default_rmb_rate'")
         rmb_rate_row = cursor.fetchone()
         rmb_rate = float(rmb_rate_row['value']) if rmb_rate_row else 11.5
 
         cursor.execute("""
-            SELECT 
-                pi.item_name,
-                pi.qty,
-                pi.unit_price,
+            SELECT
+                spl.items_json,
+                po.id AS po_id,
                 po.currency,
                 po.status,
                 po.po_number
             FROM shipment_po_link spl
             JOIN purchase_orders po ON po.id = spl.po_id
-            JOIN po_items pi ON pi.po_id = po.id
             WHERE spl.shipment_id = ? AND po.deleted_at IS NULL
         """, (sid,))
-        rows = cursor.fetchall()
-        items = []
-        for row in rows:
-            currency = row['currency'] or 'USD'
-            price = float(row['unit_price'] or 0)
-            if currency == 'USD':
-                price_inr = round(price * usd_rate, 2)
-            elif currency == 'CNY':
-                price_inr = round(price * rmb_rate, 2)
-            else:
-                price_inr = price # Fallback
+        links = cursor.fetchall()
 
-            items.append({
-                "item_name": row['item_name'],
-                "qty": row['qty'],
-                "unit_price_inr": price_inr,
-                "status": row['status'],
-                "po_number": row['po_number']
-            })
-            
+        items = []
+        for link in links:
+            po_id = link['po_id']
+            currency = link['currency'] or 'USD'
+            status = link['status']
+            po_number = link['po_number']
+            shipped_items = json.loads(link['items_json'] or '[]')
+
+            cursor.execute(
+                "SELECT item_name, unit_price FROM po_items WHERE po_id = ?",
+                (po_id,)
+            )
+            price_by_name = {r['item_name']: float(r['unit_price'] or 0) for r in cursor.fetchall()}
+
+            if shipped_items:
+                items_to_show = shipped_items
+            else:
+                # Legacy fallback: no per-item selection stored
+                cursor.execute(
+                    "SELECT item_name, qty FROM po_items WHERE po_id = ? ORDER BY line_sequence",
+                    (po_id,)
+                )
+                items_to_show = [dict(r) for r in cursor.fetchall()]
+
+            for item in items_to_show:
+                item_name = item.get('item_name', '')
+                price = price_by_name.get(item_name, 0.0)
+                if currency == 'USD':
+                    price_inr = round(price * usd_rate, 2)
+                elif currency == 'CNY':
+                    price_inr = round(price * rmb_rate, 2)
+                else:
+                    price_inr = price
+                items.append({
+                    "item_name": item_name,
+                    "qty": item.get('qty', 0),
+                    "unit_price_inr": price_inr,
+                    "status": status,
+                    "po_number": po_number
+                })
+
     return jsonify(items)
 
 # ── GET /api/shipments ────────────────────────────────────────────────────────
