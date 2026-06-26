@@ -330,18 +330,45 @@ def init_db():
     
     
     
-        # ── PO PAYMENT PROOFS TABLE ──────────────────────────────────────────────
-        # Replaces per-PO _payment_meta.json files.
+        # ── PO PAYMENT PROOFS TABLE (legacy single-slot) ─────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS po_payments (
                 po_id        TEXT PRIMARY KEY,
                 filename     TEXT NOT NULL,
                 original     TEXT NOT NULL,
                 uploaded_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                confirmed    INTEGER NOT NULL DEFAULT 0,   -- 0 / 1 boolean
+                confirmed    INTEGER NOT NULL DEFAULT 0,
                 confirmed_at TEXT,
                 FOREIGN KEY (po_id) REFERENCES purchase_orders(id) ON DELETE CASCADE
             )
+        """)
+
+        # ── PO PAYMENT PROOFS MULTI-SLOT TABLE ───────────────────────────────────
+        # Supports up to 2 payment proofs per PO (e.g. 30% advance + 70% balance).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS po_payment_proofs (
+                id           TEXT PRIMARY KEY,
+                po_id        TEXT NOT NULL,
+                slot_num     INTEGER NOT NULL DEFAULT 1,
+                slot_label   TEXT NOT NULL DEFAULT '30% Advance',
+                filename     TEXT NOT NULL,
+                original     TEXT NOT NULL,
+                uploaded_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                confirmed    INTEGER NOT NULL DEFAULT 0,
+                confirmed_at TEXT,
+                UNIQUE(po_id, slot_num),
+                FOREIGN KEY (po_id) REFERENCES purchase_orders(id) ON DELETE CASCADE
+            )
+        """)
+        # One-time migration: copy legacy po_payments rows → slot 1 of new table
+        cursor.execute("""
+            INSERT OR IGNORE INTO po_payment_proofs
+                (id, po_id, slot_num, slot_label, filename, original,
+                 uploaded_at, confirmed, confirmed_at)
+            SELECT
+                po_id || '_slot1', po_id, 1, '30% Advance',
+                filename, original, uploaded_at, confirmed, confirmed_at
+            FROM po_payments
         """)
     
         # ── SUPPLIER PAYMENT TERMS TABLE ────────────────────────────────────────

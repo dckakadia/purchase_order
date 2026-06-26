@@ -4087,21 +4087,27 @@ async function confirmAwardAll() {
 
 let _attachPendingFile = null;
 
-// ── PAYMENT PROOF ──────────────────────────────────────────────────────────
+// ── PAYMENT PROOF (multi-slot) ──────────────────────────────────────────────
 
-let _paymentPendingFile = null;
+let _paymentPendingFiles = {1: null, 2: null};
 
 function openAttachments(pid){
   document.getElementById('attach_po_id').value = pid;
   document.getElementById('attachLabelRow').style.display = 'none';
   _attachPendingFile = null;
   document.getElementById('attachFileInput').value = '';
-  // Reset payment section
-  _paymentPendingFile = null;
-  document.getElementById('paymentFileInput').value = '';
-  document.getElementById('paymentPendingRow').style.display = 'none';
-  document.getElementById('paymentConfirmedRow').style.display = 'none';
-  document.getElementById('paymentUploadZone').style.display = 'block';
+  // Reset both payment slots
+  _paymentPendingFiles = {1: null, 2: null};
+  [1,2].forEach(s => {
+    const fi = document.getElementById(`payFile${s}`);
+    if(fi) fi.value = '';
+    const pp = document.getElementById(`payPending${s}`);
+    if(pp) pp.style.display = 'none';
+    const pc = document.getElementById(`payConfirmed${s}`);
+    if(pc) pc.style.display = 'none';
+    const su = document.getElementById(`paySlot${s}Upload`);
+    if(su) su.style.display = 'block';
+  });
   openModal('attachOverlay');
   renderAttachList(pid);
   loadPaymentProofStatus(pid);
@@ -4216,94 +4222,92 @@ function attachDrop(e){
   if(files && files.length) attachFilesSelected(files);
 }
 
-// ── PAYMENT PROOF FUNCTIONS ─────────────────────────────────────────────────
+// ── PAYMENT PROOF FUNCTIONS (multi-slot) ────────────────────────────────────
 
-function paymentDragOver(e){
+function payDragOver(e, slot){
   e.preventDefault();
-  document.getElementById('paymentDropzone').style.borderColor='var(--accent)';
-  document.getElementById('paymentDropzone').style.background='rgba(34,197,94,.06)';
+  const el = document.getElementById(`payDrop${slot}`);
+  el.style.borderColor = slot===1 ? 'var(--accent)' : 'var(--accent2)';
+  el.style.background = 'rgba(59,130,246,.06)';
 }
-function paymentDragLeave(e){
-  document.getElementById('paymentDropzone').style.borderColor='rgba(34,197,94,.35)';
-  document.getElementById('paymentDropzone').style.background='';
+function payDragLeave(e, slot){
+  const el = document.getElementById(`payDrop${slot}`);
+  el.style.borderColor = slot===1 ? 'rgba(34,197,94,.3)' : 'rgba(59,130,246,.3)';
+  el.style.background = '';
 }
-function paymentDrop(e){
-  e.preventDefault();
-  paymentDragLeave(e);
-  const files = e.dataTransfer.files;
-  if(files && files.length) paymentFileSelected(files);
+function payDrop(e, slot){
+  e.preventDefault(); payDragLeave(e, slot);
+  if(e.dataTransfer.files.length) payFileSelected(slot, e.dataTransfer.files);
 }
 
-function paymentFileSelected(files){
+function payFileSelected(slot, files){
   if(!files || !files.length) return;
   const file = files[0];
   if(file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')){
     toast('Only PDF files are allowed for payment proof','err'); return;
   }
-  _paymentPendingFile = file;
+  _paymentPendingFiles[slot] = file;
   const pid = document.getElementById('attach_po_id').value;
-  // Find PO number for display
   const po = pos.find(p => p.id === pid);
   const poNum = po ? po.po_number : pid;
   const safePo = poNum.replace(/[^\w\-]/g,'_');
-  document.getElementById('paymentPendingName').textContent = file.name;
-  document.getElementById('paymentPendingFinal').textContent = `Payment_${safePo}.pdf`;
-  document.getElementById('paymentPendingRow').style.display = 'block';
+  document.getElementById(`payFinal${slot}`).textContent = `Payment_${safePo}_0${slot}.pdf`;
+  document.getElementById(`payPending${slot}`).style.display = 'block';
 }
 
-function cancelPaymentUpload(){
-  _paymentPendingFile = null;
-  document.getElementById('paymentFileInput').value = '';
-  document.getElementById('paymentPendingRow').style.display = 'none';
+function cancelPayment(slot){
+  _paymentPendingFiles[slot] = null;
+  document.getElementById(`payFile${slot}`).value = '';
+  document.getElementById(`payPending${slot}`).style.display = 'none';
 }
 
-async function doConfirmPaymentUpload(){
+async function doConfirmPayment(slot){
   const pid = document.getElementById('attach_po_id').value;
-  if(!_paymentPendingFile){ toast('No file selected','err'); return; }
+  if(!_paymentPendingFiles[slot]){ toast('No file selected','err'); return; }
   try{
-    if(_paymentPendingFile !== '__already_uploaded__'){
-      // Step 1: upload
+    if(_paymentPendingFiles[slot] !== '__already_uploaded__'){
       const fd = new FormData();
-      fd.append('file', _paymentPendingFile);
-      const r = await fetch(`${API_BASE}/api/po/${pid}/payment`, {method:'POST', body:fd});
+      fd.append('file', _paymentPendingFiles[slot]);
+      const r = await fetch(`${API_BASE}/api/po/${pid}/payments/${slot}`, {method:'POST', body:fd});
       const d = await r.json();
       if(d.error){ toast(d.error,'err'); return; }
     }
-    // Step 2: confirm/lock
-    const r2 = await fetch(`${API_BASE}/api/po/${pid}/payment/confirm`, {method:'POST'});
+    const r2 = await fetch(`${API_BASE}/api/po/${pid}/payments/${slot}/confirm`, {method:'POST'});
     const d2 = await r2.json();
     if(d2.error){ toast(d2.error,'err'); return; }
-    toast('Payment proof locked permanently ✔','ok');
-    cancelPaymentUpload();
-    showPaymentConfirmedUI(pid, d2);
+    toast(`Payment proof ${slot} locked permanently ✔`,'ok');
+    cancelPayment(slot);
+    showPaymentConfirmed(slot, pid, d2);
   } catch(e){ toast('Upload failed: '+e.message,'err'); }
 }
 
-function showPaymentConfirmedUI(pid, meta){
-  document.getElementById('paymentUploadZone').style.display = 'none';
-  document.getElementById('paymentConfirmedRow').style.display = 'block';
-  document.getElementById('paymentConfirmedName').textContent = meta.filename || 'Payment proof';
+function showPaymentConfirmed(slot, pid, meta){
+  document.getElementById(`paySlot${slot}Upload`).style.display = 'none';
+  document.getElementById(`payConfirmed${slot}`).style.display = 'block';
+  document.getElementById(`payCName${slot}`).textContent = meta.filename || 'Payment proof';
   const sz = meta.size > 1048576 ? (meta.size/1048576).toFixed(1)+' MB' : Math.round(meta.size/1024)+' KB';
-  document.getElementById('paymentConfirmedMeta').textContent = `Uploaded ${meta.uploaded_at||''} · ${sz}`;
-  document.getElementById('paymentDownloadBtn').href = `${API_BASE}/api/po/${pid}/payment/download`;
+  document.getElementById(`payCMeta${slot}`).textContent = `Uploaded ${meta.uploaded_at||''} · ${sz}`;
+  document.getElementById(`payCDl${slot}`).href = `${API_BASE}/api/po/${pid}/payments/${slot}/download`;
 }
 
 async function loadPaymentProofStatus(pid){
   try{
-    const meta = await api(`/api/po/${pid}/payment`);
-    if(meta && meta.confirmed){
-      showPaymentConfirmedUI(pid, meta);
-    } else if(meta && !meta.confirmed){
-      // Uploaded but not confirmed (edge case: page refresh mid-flow) — treat as pending
-      document.getElementById('paymentPendingName').textContent = meta.original || meta.filename;
-      const po = pos.find(p => p.id === pid);
-      const poNum = po ? po.po_number : pid;
-      const safePo = poNum.replace(/[^\w\-]/g,'_');
-      document.getElementById('paymentPendingFinal').textContent = `Payment_${safePo}.pdf`;
-      document.getElementById('paymentPendingRow').style.display = 'block';
-      // Re-attach a fake file flag so confirm button works via direct confirm call
-      _paymentPendingFile = '__already_uploaded__';
-    }
+    const proofs = await api(`/api/po/${pid}/payments`);
+    const po = pos.find(p => p.id === pid);
+    const poNum = po ? po.po_number : pid;
+    const safePo = poNum.replace(/[^\w\-]/g,'_');
+    proofs.forEach(meta => {
+      const slot = meta.slot_num;
+      if(!slot || slot > 2) return;
+      if(meta.confirmed){
+        showPaymentConfirmed(slot, pid, meta);
+      } else {
+        // Uploaded but not confirmed — restore pending state
+        document.getElementById(`payFinal${slot}`).textContent = `Payment_${safePo}_0${slot}.pdf`;
+        document.getElementById(`payPending${slot}`).style.display = 'block';
+        _paymentPendingFiles[slot] = '__already_uploaded__';
+      }
+    });
   } catch(e){}
 }
 
@@ -5176,56 +5180,87 @@ table.qs-grid .qs-savings-row td.td-savings-sup{text-align:right}
     <button class="modal-close" onclick="closeModal('attachOverlay')">✕</button>
     <input type="hidden" id="attach_po_id">
 
-    <!-- ── PAYMENT PROOF SECTION ── -->
+    <!-- ── PAYMENT PROOF SECTION (2-slot) ── -->
     <div style="background:linear-gradient(135deg,rgba(34,197,94,.06),rgba(16,185,129,.04));border:1px solid rgba(34,197,94,.25);border-radius:10px;padding:14px 16px;margin-bottom:18px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
         <span style="font-size:16px">💳</span>
         <span style="font-size:12px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.07em">Payment Proof</span>
         <span style="font-size:9px;color:var(--text2);margin-left:4px">· PDF only · Permanent once confirmed</span>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
 
-      <!-- State: no upload yet -->
-      <div id="paymentUploadZone">
-        <div id="paymentDropzone"
-          style="border:2px dashed rgba(34,197,94,.35);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:all .2s"
-          onclick="document.getElementById('paymentFileInput').click()"
-          ondragover="paymentDragOver(event)" ondragleave="paymentDragLeave(event)" ondrop="paymentDrop(event)">
-          <div style="font-size:20px;margin-bottom:5px">📄</div>
-          <div style="font-size:12px;color:var(--text2)">Click to select or drag &amp; drop payment PDF</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:3px">PDF files only · max 20 MB</div>
-          <input type="file" id="paymentFileInput" style="display:none" accept=".pdf,application/pdf"
-            onchange="paymentFileSelected(this.files)">
-        </div>
-        <!-- Pending confirm row (hidden until file chosen) -->
-        <div id="paymentPendingRow" style="display:none;margin-top:10px;background:var(--bg3);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:10px 14px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <span style="font-size:18px">📄</span>
-            <div style="flex:1;min-width:0">
-              <div id="paymentPendingName" style="font-weight:700;color:#fff;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-              <div style="font-size:10px;color:var(--text2);margin-top:2px">Will be saved as <span id="paymentPendingFinal" style="color:var(--accent);font-weight:700"></span></div>
+        <!-- SLOT 1: 30% Advance -->
+        <div style="background:rgba(0,0,0,.15);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:10px 12px">
+          <div style="font-size:10px;font-weight:800;color:var(--accent);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">30% Advance</div>
+          <div id="paySlot1Upload">
+            <div id="payDrop1"
+              style="border:2px dashed rgba(34,197,94,.3);border-radius:6px;padding:14px;text-align:center;cursor:pointer;transition:all .2s"
+              onclick="document.getElementById('payFile1').click()"
+              ondragover="payDragOver(event,1)" ondragleave="payDragLeave(event,1)" ondrop="payDrop(event,1)">
+              <div style="font-size:18px;margin-bottom:3px">📄</div>
+              <div style="font-size:10px;color:var(--text2)">Click or drag &amp; drop PDF</div>
+              <div style="font-size:9px;color:var(--text3);margin-top:2px">PDF only · max 20 MB</div>
+              <input type="file" id="payFile1" style="display:none" accept=".pdf,application/pdf"
+                onchange="payFileSelected(1,this.files)">
             </div>
-            <div style="display:flex;gap:6px;flex-shrink:0">
-              <button class="btn btn-green btn-sm" onclick="doConfirmPaymentUpload()">✔ Confirm &amp; Lock</button>
-              <button class="btn btn-ghost btn-sm" onclick="cancelPaymentUpload()">✕</button>
+            <div id="payPending1" style="display:none;margin-top:8px;background:var(--bg3);border:1px solid rgba(34,197,94,.3);border-radius:6px;padding:8px 10px">
+              <div style="font-size:10px;color:var(--text2);margin-bottom:4px">Will be saved as <span id="payFinal1" style="color:var(--accent);font-weight:700"></span></div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-green btn-xs" onclick="doConfirmPayment(1)">✔ Confirm &amp; Lock</button>
+                <button class="btn btn-ghost btn-xs" onclick="cancelPayment(1)">✕</button>
+              </div>
+              <div style="font-size:9px;color:var(--accent4);margin-top:5px">⚠ Cannot be deleted after confirming</div>
             </div>
           </div>
-          <div style="font-size:10px;color:var(--accent4);margin-top:8px;padding:6px 8px;background:rgba(245,158,11,.08);border-radius:5px;border:1px solid rgba(245,158,11,.2)">
-            ⚠ Once confirmed, this file <strong>cannot be deleted</strong>. Make sure you upload the correct payment PDF.
+          <div id="payConfirmed1" style="display:none">
+            <div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid rgba(34,197,94,.3);border-radius:6px;padding:8px 10px">
+              <span style="font-size:16px">🔒</span>
+              <div style="flex:1;min-width:0">
+                <div id="payCName1" style="font-weight:700;color:var(--accent);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+                <div id="payCMeta1" style="font-size:9px;color:var(--text2);margin-top:1px"></div>
+              </div>
+              <a id="payCDl1" href="#" class="btn btn-green btn-xs" download>⬇</a>
+            </div>
+            <div style="font-size:9px;color:var(--accent);margin-top:4px;padding:2px 4px">✔ Locked permanently</div>
           </div>
         </div>
-      </div>
 
-      <!-- State: confirmed (shown after lock) -->
-      <div id="paymentConfirmedRow" style="display:none">
-        <div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid rgba(34,197,94,.35);border-radius:8px;padding:10px 14px">
-          <span style="font-size:20px">🔒</span>
-          <div style="flex:1;min-width:0">
-            <div id="paymentConfirmedName" style="font-weight:700;color:var(--accent);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-            <div id="paymentConfirmedMeta" style="font-size:10px;color:var(--text2);margin-top:2px"></div>
+        <!-- SLOT 2: 70% Balance -->
+        <div style="background:rgba(0,0,0,.15);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:10px 12px">
+          <div style="font-size:10px;font-weight:800;color:var(--accent2);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">70% Balance</div>
+          <div id="paySlot2Upload">
+            <div id="payDrop2"
+              style="border:2px dashed rgba(59,130,246,.3);border-radius:6px;padding:14px;text-align:center;cursor:pointer;transition:all .2s"
+              onclick="document.getElementById('payFile2').click()"
+              ondragover="payDragOver(event,2)" ondragleave="payDragLeave(event,2)" ondrop="payDrop(event,2)">
+              <div style="font-size:18px;margin-bottom:3px">📄</div>
+              <div style="font-size:10px;color:var(--text2)">Click or drag &amp; drop PDF</div>
+              <div style="font-size:9px;color:var(--text3);margin-top:2px">PDF only · max 20 MB</div>
+              <input type="file" id="payFile2" style="display:none" accept=".pdf,application/pdf"
+                onchange="payFileSelected(2,this.files)">
+            </div>
+            <div id="payPending2" style="display:none;margin-top:8px;background:var(--bg3);border:1px solid rgba(59,130,246,.3);border-radius:6px;padding:8px 10px">
+              <div style="font-size:10px;color:var(--text2);margin-bottom:4px">Will be saved as <span id="payFinal2" style="color:var(--accent2);font-weight:700"></span></div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-green btn-xs" onclick="doConfirmPayment(2)">✔ Confirm &amp; Lock</button>
+                <button class="btn btn-ghost btn-xs" onclick="cancelPayment(2)">✕</button>
+              </div>
+              <div style="font-size:9px;color:var(--accent4);margin-top:5px">⚠ Cannot be deleted after confirming</div>
+            </div>
           </div>
-          <a id="paymentDownloadBtn" href="#" class="btn btn-green btn-sm" download>⬇ Download</a>
+          <div id="payConfirmed2" style="display:none">
+            <div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid rgba(59,130,246,.3);border-radius:6px;padding:8px 10px">
+              <span style="font-size:16px">🔒</span>
+              <div style="flex:1;min-width:0">
+                <div id="payCName2" style="font-weight:700;color:var(--accent2);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+                <div id="payCMeta2" style="font-size:9px;color:var(--text2);margin-top:1px"></div>
+              </div>
+              <a id="payCDl2" href="#" class="btn btn-primary btn-xs" download>⬇</a>
+            </div>
+            <div style="font-size:9px;color:var(--accent2);margin-top:4px;padding:2px 4px">✔ Locked permanently</div>
+          </div>
         </div>
-        <div style="font-size:10px;color:var(--accent);margin-top:6px;padding:4px 8px">✔ Payment proof locked &amp; permanently stored.</div>
+
       </div>
     </div>
     <!-- ── END PAYMENT PROOF SECTION ── -->

@@ -4982,18 +4982,19 @@ def rename_attachment(pid, aid):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PAYMENT PROOF
+# PAYMENT PROOF (multi-slot: 30% advance + 70% balance)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+PAYMENT_SLOTS = {1: "30% Advance", 2: "70% Balance"}
+
 def _payment_dir(pid):
-    """Get/create payment proof directory for a PO (physical file storage)"""
     d = os.path.join(ATTACH_DIR, pid, "_payment")
     os.makedirs(d, exist_ok=True)
     return d
 
 
 def _migrate_payment_json(pid, conn):
-    """One-time migration: import legacy _payment_meta.json into po_payments."""
+    """One-time migration: import legacy _payment_meta.json into po_payment_proofs slot 1."""
     meta_path = os.path.join(_payment_dir(pid), "_payment_meta.json")
     if not os.path.exists(meta_path):
         return
@@ -5002,10 +5003,11 @@ def _migrate_payment_json(pid, conn):
             m = json.load(f)
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT OR IGNORE INTO po_payments "
-            "(po_id, filename, original, uploaded_at, confirmed, confirmed_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (pid, m.get("filename", ""),
+            "INSERT OR IGNORE INTO po_payment_proofs "
+            "(id, po_id, slot_num, slot_label, filename, original, uploaded_at, confirmed, confirmed_at) "
+            "VALUES (?, ?, 1, '30% Advance', ?, ?, ?, ?, ?)",
+            (pid + "_slot1", pid,
+             m.get("filename", ""),
              m.get("original", m.get("filename", "")),
              m.get("uploaded_at", datetime.now().strftime("%Y-%m-%d %H:%M")),
              1 if m.get("confirmed") else 0,
@@ -5016,46 +5018,69 @@ def _migrate_payment_json(pid, conn):
         print(f"[payment-migrate] {pid}: {ex}")
 
 
-@app.route("/api/po/<pid>/payment", methods=["GET"])
-def get_payment_status(pid):
-    """Check payment proof status"""
+def _migrate_legacy_po_payments(pid, conn):
+    """One-time migration: copy legacy po_payments row → po_payment_proofs slot 1."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM po_payments WHERE po_id = ?", (pid,))
+    row = cursor.fetchone()
+    if not row:
+        return
+    cursor.execute(
+        "INSERT OR IGNORE INTO po_payment_proofs "
+        "(id, po_id, slot_num, slot_label, filename, original, uploaded_at, confirmed, confirmed_at) "
+        "VALUES (?, ?, 1, '30% Advance', ?, ?, ?, ?, ?)",
+        (pid + "_slot1", pid,
+         row["filename"], row["original"], row["uploaded_at"],
+         row["confirmed"], row["confirmed_at"])
+    )
+
+
+# ── GET /api/po/<pid>/payments ────────────────────────────────────────────────
+
+@app.route("/api/po/<pid>/payments", methods=["GET"])
+def get_payments_status(pid):
+    """Return all payment proof slots for a PO."""
     with get_db() as conn:
         _migrate_payment_json(pid, conn)
+        _migrate_legacy_po_payments(pid, conn)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT filename, original, uploaded_at, confirmed, confirmed_at "
-            "FROM po_payments WHERE po_id = ?",
+            "SELECT slot_num, slot_label, filename, original, uploaded_at, confirmed, confirmed_at "
+            "FROM po_payment_proofs WHERE po_id = ? ORDER BY slot_num",
             (pid,)
         )
-        row = cursor.fetchone()
+        rows = cursor.fetchall()
 
-    if not row:
-        return jsonify({})
-
-    meta = dict(row)
-    meta["confirmed"] = bool(meta["confirmed"])
-    fp = os.path.join(_payment_dir(pid), meta["filename"])
-    try:
+    result = []
+    for row in rows:
+        meta = dict(row)
+        meta["confirmed"] = bool(meta["confirmed"])
+        fp = os.path.join(_payment_dir(pid), meta["filename"])
         meta["size"] = os.path.getsize(fp) if os.path.exists(fp) else 0
-    except (OSError, IOError) as e:
-        meta["size"] = 0
-        meta["error"] = f"Could not determine file size: {str(e)}"
-    return jsonify(meta)
+        result.append(meta)
+    return jsonify(result)
 
 
-@app.route("/api/po/<pid>/payment", methods=["POST"])
+# ── POST /api/po/<pid>/payments/<slot> ────────────────────────────────────────
+
+@app.route("/api/po/<pid>/payments/<int:slot>", methods=["POST"])
 @require_permission("po_edit")
-def upload_payment_proof(pid):
-    """Upload payment proof PDF"""
+def upload_payment_slot(pid, slot):
+    """Upload a payment proof PDF for the given slot (1 or 2)."""
+    if slot not in PAYMENT_SLOTS:
+        return jsonify({"error": "Invalid slot — must be 1 or 2"}), 400
+
     with get_db() as conn:
         _migrate_payment_json(pid, conn)
+        _migrate_legacy_po_payments(pid, conn)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT confirmed FROM po_payments WHERE po_id = ?", (pid,)
+            "SELECT confirmed FROM po_payment_proofs WHERE po_id = ? AND slot_num = ?",
+            (pid, slot)
         )
         existing = cursor.fetchone()
         if existing and existing["confirmed"]:
-            return jsonify({"error": "Payment proof already confirmed and locked"}), 409
+            return jsonify({"error": "This payment proof is already confirmed and locked"}), 409
 
         if "file" not in request.files:
             return jsonify({"error": "No file provided"}), 400
@@ -5070,7 +5095,7 @@ def upload_payment_proof(pid):
         po_num = po_row["po_number"] if po_row else pid
 
         safe_po = re.sub(r'[^\w\-]', '_', po_num)
-        dest_name = f"Payment_{safe_po}.pdf"
+        dest_name = f"Payment_{safe_po}_0{slot}.pdf"
         dest_path = os.path.join(_payment_dir(pid), dest_name)
         file.save(dest_path)
 
@@ -5080,66 +5105,117 @@ def upload_payment_proof(pid):
 
         uploaded_at = datetime.now().strftime("%Y-%m-%d %H:%M")
         cursor.execute(
-            "INSERT OR REPLACE INTO po_payments "
-            "(po_id, filename, original, uploaded_at, confirmed, confirmed_at) "
-            "VALUES (?, ?, ?, ?, 0, NULL)",
-            (pid, dest_name, file.filename, uploaded_at)
+            "INSERT OR REPLACE INTO po_payment_proofs "
+            "(id, po_id, slot_num, slot_label, filename, original, uploaded_at, confirmed, confirmed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL)",
+            (f"{pid}_slot{slot}", pid, slot, PAYMENT_SLOTS[slot],
+             dest_name, file.filename, uploaded_at)
         )
 
     return jsonify({"ok": True, "filename": dest_name})
 
 
-@app.route("/api/po/<pid>/payment/confirm", methods=["POST"])
+# ── POST /api/po/<pid>/payments/<slot>/confirm ────────────────────────────────
+
+@app.route("/api/po/<pid>/payments/<int:slot>/confirm", methods=["POST"])
 @require_permission("po_edit")
-def confirm_payment_proof(pid):
-    """Confirm and lock payment proof (permanent)"""
+def confirm_payment_slot(pid, slot):
+    """Confirm and permanently lock a payment proof slot."""
+    if slot not in PAYMENT_SLOTS:
+        return jsonify({"error": "Invalid slot — must be 1 or 2"}), 400
+
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT filename, confirmed FROM po_payments WHERE po_id = ?", (pid,)
+            "SELECT filename, confirmed FROM po_payment_proofs WHERE po_id = ? AND slot_num = ?",
+            (pid, slot)
         )
         row = cursor.fetchone()
         if not row:
-            return jsonify({"error": "No payment proof uploaded yet"}), 400
+            return jsonify({"error": "No payment proof uploaded for this slot yet"}), 400
         if row["confirmed"]:
             return jsonify({"error": "Already confirmed"}), 409
 
         confirmed_at = datetime.now().strftime("%Y-%m-%d %H:%M")
         cursor.execute(
-            "UPDATE po_payments SET confirmed = 1, confirmed_at = ? WHERE po_id = ?",
-            (confirmed_at, pid)
+            "UPDATE po_payment_proofs SET confirmed = 1, confirmed_at = ? "
+            "WHERE po_id = ? AND slot_num = ?",
+            (confirmed_at, pid, slot)
         )
         cursor.execute(
-            "SELECT filename, original, uploaded_at, confirmed, confirmed_at "
-            "FROM po_payments WHERE po_id = ?",
-            (pid,)
+            "SELECT slot_num, slot_label, filename, original, uploaded_at, confirmed, confirmed_at "
+            "FROM po_payment_proofs WHERE po_id = ? AND slot_num = ?",
+            (pid, slot)
         )
         updated = dict(cursor.fetchone())
 
-    updated["confirmed"] = bool(updated["confirmed"])
+    updated["confirmed"] = True
     fp = os.path.join(_payment_dir(pid), updated["filename"])
     updated["size"] = os.path.getsize(fp) if os.path.exists(fp) else 0
     return jsonify(updated)
 
 
-@app.route("/api/po/<pid>/payment/download", methods=["GET"])
-def download_payment_proof(pid):
-    """Download the payment proof PDF"""
+# ── GET /api/po/<pid>/payments/<slot>/download ────────────────────────────────
+
+@app.route("/api/po/<pid>/payments/<int:slot>/download", methods=["GET"])
+def download_payment_slot(pid, slot):
+    """Download the payment proof PDF for the given slot."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT filename FROM po_payments WHERE po_id = ?", (pid,)
+            "SELECT filename FROM po_payment_proofs WHERE po_id = ? AND slot_num = ?",
+            (pid, slot)
         )
         row = cursor.fetchone()
 
     if not row:
-        return jsonify({"error": "No payment proof found"}), 404
+        return jsonify({"error": "No payment proof found for this slot"}), 404
 
     fp = os.path.join(_payment_dir(pid), row["filename"])
     if not os.path.exists(fp):
         return jsonify({"error": "File missing from disk"}), 404
 
     return send_file(fp, download_name=row["filename"], mimetype="application/pdf")
+
+
+# ── Legacy single-slot compat (delegates to slot 1) ──────────────────────────
+
+@app.route("/api/po/<pid>/payment", methods=["GET"])
+def get_payment_status(pid):
+    with get_db() as conn:
+        _migrate_payment_json(pid, conn)
+        _migrate_legacy_po_payments(pid, conn)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT filename, original, uploaded_at, confirmed, confirmed_at "
+            "FROM po_payment_proofs WHERE po_id = ? AND slot_num = 1",
+            (pid,)
+        )
+        row = cursor.fetchone()
+    if not row:
+        return jsonify({})
+    meta = dict(row)
+    meta["confirmed"] = bool(meta["confirmed"])
+    fp = os.path.join(_payment_dir(pid), meta["filename"])
+    meta["size"] = os.path.getsize(fp) if os.path.exists(fp) else 0
+    return jsonify(meta)
+
+
+@app.route("/api/po/<pid>/payment", methods=["POST"])
+@require_permission("po_edit")
+def upload_payment_proof(pid):
+    return upload_payment_slot(pid, 1)
+
+
+@app.route("/api/po/<pid>/payment/confirm", methods=["POST"])
+@require_permission("po_edit")
+def confirm_payment_proof(pid):
+    return confirm_payment_slot(pid, 1)
+
+
+@app.route("/api/po/<pid>/payment/download", methods=["GET"])
+def download_payment_proof(pid):
+    return download_payment_slot(pid, 1)
 
 @app.route("/api/scan-invoice", methods=["POST"])
 @require_permission("po_edit")
