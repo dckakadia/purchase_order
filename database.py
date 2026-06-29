@@ -371,6 +371,27 @@ def init_db():
             FROM po_payments
         """)
     
+        # ── REPAIR: fix shipments stuck in non-Delivered status ─────────────────
+        # ship_row.get() bug previously prevented _sync_shipment_from_po from
+        # marking shipments as Delivered when all linked POs were Received.
+        cursor.execute("""
+            UPDATE shipments
+            SET status = 'Delivered',
+                actual_arrival = COALESCE(actual_arrival, date('now')),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE deleted_at IS NULL
+              AND status NOT IN ('Delivered', 'Cancelled')
+              AND id IN (
+                SELECT spl.shipment_id
+                FROM shipment_po_link spl
+                JOIN purchase_orders po ON po.id = spl.po_id
+                WHERE po.deleted_at IS NULL
+                GROUP BY spl.shipment_id
+                HAVING COUNT(*) > 0
+                   AND COUNT(*) = SUM(CASE WHEN po.status = 'Received' THEN 1 ELSE 0 END)
+              )
+        """)
+
         # ── SUPPLIER PAYMENT TERMS TABLE ────────────────────────────────────────
         # One record per supplier — stores the agreed payment arrangement.
         cursor.execute("""

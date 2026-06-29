@@ -328,7 +328,7 @@ def _sync_shipment_from_po(cursor, po_id, po_status):
                     "author": "System Sync",
                     "text": f"Status auto-updated to {new_ship_status} (PO status changed to {po_status})"
                 })
-                actual_arr = ship_row.get("actual_arrival")
+                actual_arr = ship_row["actual_arrival"]
                 if new_ship_status == "Delivered" and not actual_arr:
                     actual_arr = str(date.today())
                 cursor.execute("""
