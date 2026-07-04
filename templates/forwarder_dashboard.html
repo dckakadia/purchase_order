@@ -721,6 +721,7 @@ tr.pl-items-row td{border-bottom:1px solid var(--border)}
       <button class="btn btn-ghost btn-sm" onclick="openPLPrint()">🖨 Print View</button>
       <button class="btn btn-ghost btn-sm" onclick="downloadPLPDF()">⬇ Download PDF</button>
       <div style="flex:1"></div>
+      <button class="req-edit btn btn-primary btn-sm" onclick="saveAllPL()">💾 Save</button>
       <button class="req-edit btn btn-red btn-sm" onclick="deletePL()">Delete Packing List</button>
     </div>
   </div>
@@ -2088,6 +2089,16 @@ async function deletePL() {
 
 function openPLPrint()    { if (currentPL) window.open(`/packing-list/${currentPL.id}/print`, '_blank'); }
 function downloadPLPDF()  { if (currentPL) window.location.href = `/packing-list/${currentPL.id}/pdf`; }
+
+async function saveAllPL() {
+  if (!currentPL) return;
+  // Flush whatever field is currently focused — its autosave fires on blur,
+  // so an edit made just before clicking Save would otherwise be in flight.
+  const active = document.activeElement;
+  if (active && typeof active.blur === 'function' && active.tagName !== 'BODY') active.blur();
+  await savePLHeader();
+  toast('Packing list saved');
+}
 
 // ── Inline carton row editing ──────────────────────────────────────────────
 
