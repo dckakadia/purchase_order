@@ -26,19 +26,21 @@
   .field-value{font-weight:600;color:#111;font-size:13px}
   table{width:100%;border-collapse:collapse;margin-bottom:0}
   thead tr{background:#1e3a8a}
-  thead th{padding:7px 10px;color:#fff;font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;text-align:left}
+  thead th{padding:9px 12px;color:#fff;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-align:left}
   thead th.r{text-align:right}
   thead th.c{text-align:center}
   tbody tr:nth-child(even){background:#f8faff}
-  tbody td{padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;vertical-align:top}
+  tbody td{padding:9px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;vertical-align:top}
   tbody td.r{text-align:right}
   tbody td.c{text-align:center}
   tfoot tr{background:#1e3a8a}
-  tfoot td{padding:8px 10px;color:#fff;font-weight:700;font-size:12px}
+  tfoot td{padding:9px 12px;color:#fff;font-weight:700;font-size:13px}
   tfoot td.r{text-align:right}
   .table-wrap{border:1px solid #d1d5db;border-radius:8px;overflow:hidden;margin-bottom:10px}
-  .item-lines{font-size:10px;line-height:1.6}
-  .item-lines div{color:#374151}
+  .item-lines{font-size:13px;line-height:2}
+  .item-lines div{color:#111}
+  .item-lines .item-qty{font-weight:700;color:#1e3a8a;white-space:nowrap}
+  .item-lines .item-hint{color:#9ca3af;font-size:10px;font-weight:400}
   .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-top:16px}
   .sig-box{border-top:2px solid #d1d5db;padding-top:8px}
   .sig-label{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9ca3af;margin-bottom:4px}
@@ -147,8 +149,7 @@
       <tr>
         <th>Carton No. · 箱号</th>
         <th class="c"># Ctns</th>
-        <th>Item Description · 品名</th>
-        <th class="r">Qty · 数量</th>
+        <th>Item &amp; Quantity · 品名及数量</th>
         <th class="c">Dimensions (L×W×H cm)</th>
         <th class="r">Wt/Ctn (kg)</th>
         <th class="r">CBM</th>
@@ -164,21 +165,12 @@
             {% if c['items'] %}
               <div class="item-lines">
                 {% for it in c['items'] %}
-                  <div>{{ it.item_name }}{% if it.qty_per_carton %} <span style="color:#6b7280;font-size:9px">({{ it.qty_per_carton }}/ctn)</span>{% endif %}</div>
+                  <div>{{ it.item_name }} — <span class="item-qty">{{ it.quantity or 0 }} {{ it.unit or '' }}</span>{% if it.qty_per_carton %} <span class="item-hint">({{ it.qty_per_carton }}/ctn)</span>{% endif %}</div>
                 {% endfor %}
               </div>
             {% else %}
               <span style="color:#9ca3af">—</span>
             {% endif %}
-          </td>
-          <td class="r">
-            {% if c['items'] %}
-              <div class="item-lines" style="text-align:right">
-                {% for it in c['items'] %}
-                  <div>{{ it.quantity or '—' }} {{ it.unit or '' }}</div>
-                {% endfor %}
-              </div>
-            {% else %}—{% endif %}
           </td>
           <td class="c">
             {% if c.length_cm and c.width_cm and c.height_cm %}
@@ -194,7 +186,6 @@
       <tr>
         <td><strong>TOTALS · 合计</strong></td>
         <td class="c"><strong>{{ pl.total_cartons or 0 }}</strong></td>
-        <td></td>
         <td></td>
         <td></td>
         <td class="r">
