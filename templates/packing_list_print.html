@@ -234,9 +234,9 @@
         <td><strong>{{ c.carton_label or '—' }}</strong></td>
         <td class="r">{{ c.carton_count or 1 }}</td>
         <td>
-          {% if c.items %}
+          {% if c['items'] %}
             <div class="item-list">
-              {% for it in c.items %}
+              {% for it in c['items'] %}
                 <div>{{ it.item_name }}{% if it.qty_per_carton %} ({{ it.qty_per_carton }}/ctn){% endif %}</div>
               {% endfor %}
             </div>
@@ -245,9 +245,9 @@
           {% endif %}
         </td>
         <td class="r">
-          {% if c.items %}
+          {% if c['items'] %}
             <div class="item-list">
-              {% for it in c.items %}
+              {% for it in c['items'] %}
                 <div>{{ it.quantity or '—' }} {{ it.unit or '' }}</div>
               {% endfor %}
             </div>
