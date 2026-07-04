@@ -211,6 +211,23 @@ select option{background:#111520;color:#fff;padding:8px}
 
 .search-bar{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:7px 12px;color:var(--text);font-family:var(--font);font-size:12px;width:200px;box-shadow:inset 0 1px 2px rgba(0,0,0,.2)}
 .search-bar:focus{outline:none;border-color:var(--accent2)}
+
+/* Packing list inline entry grid */
+td.pl-cell{padding:4px 5px!important}
+td.pl-cell input{padding:5px 6px!important;font-size:11px!important;border-radius:5px!important;box-shadow:none;min-width:0}
+td.pl-cell input:focus{outline:none;border-color:var(--accent2)}
+td.pl-cell input.pl-num{text-align:right}
+td.pl-cell input:disabled{opacity:.5;cursor:not-allowed}
+tr.pl-carton-row:hover{background:rgba(255,255,255,.02)}
+tr.pl-items-row td{border-bottom:1px solid var(--border)}
+.pl-items-wrap{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:22px}
+.pl-item-chip{display:inline-flex;align-items:center;gap:4px;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);border-radius:14px;padding:3px 4px 3px 10px;font-size:10px;color:#fff}
+.pl-item-chip-name{white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis}
+.pl-item-chip-qty{width:52px!important;padding:2px 4px!important;font-size:10px!important;border-radius:4px!important;text-align:right;background:rgba(0,0,0,.25)!important;box-shadow:none!important}
+.pl-item-chip-unit{color:var(--text3);font-size:9px}
+.pl-item-chip-x{background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:0 2px;line-height:1}
+.pl-item-chip-x:hover{color:#ef4444}
+.pl-item-add-sel{width:auto!important;max-width:180px;padding:3px 8px!important;font-size:10px!important;border-radius:14px!important;background:rgba(255,255,255,.06)!important;box-shadow:none!important;color:var(--text2)!important}
 </style>
 
     {% if 'forwarder_edit' not in user_permissions %}
@@ -642,25 +659,22 @@ select option{background:#111520;color:#fff;padding:8px}
       <button class="modal-close" onclick="closePLModal()">✕</button>
     </div>
 
-    <!-- Header fields -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px">
+    <!-- Header fields (autosave on blur) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:6px">
       <div class="form-group">
         <label>Supplier PL Number</label>
-        <input id="plm_pl_number" placeholder="e.g. PL-2024-001">
+        <input id="plm_pl_number" placeholder="e.g. PL-2024-001" onblur="savePLHeader()">
       </div>
       <div class="form-group">
         <label>PL Date</label>
-        <input type="date" id="plm_pl_date">
+        <input type="date" id="plm_pl_date" onblur="savePLHeader()">
       </div>
       <div class="form-group">
         <label>Net Weight (kg)</label>
-        <input type="number" id="plm_net_weight" placeholder="0.000" step="0.001" min="0">
+        <input type="number" id="plm_net_weight" placeholder="0.000" step="0.001" min="0" onblur="savePLHeader()">
       </div>
     </div>
-    <div style="display:flex;gap:10px;margin-bottom:20px;align-items:center">
-      <button class="req-edit btn btn-primary btn-sm" onclick="savePLHeader()">Save Header</button>
-      <div id="plm_header_status" style="font-size:11px;color:var(--accent)"></div>
-    </div>
+    <div id="plm_header_status" style="font-size:11px;color:var(--accent);min-height:16px;margin-bottom:14px"></div>
 
     <!-- Totals bar -->
     <div id="plm_totals_bar" style="display:none;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:10px 16px;margin-bottom:16px;display:flex;gap:24px;font-size:12px">
@@ -677,21 +691,24 @@ select option{background:#111520;color:#fff;padding:8px}
     <div id="plm_cartons_section" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="font-size:11px;font-weight:800;color:var(--text2);letter-spacing:.08em;text-transform:uppercase">Carton Rows</div>
-        <button class="req-edit btn btn-green btn-sm" onclick="openAddCartonRow()">+ Add Carton Row</button>
+        <div style="display:flex;gap:8px">
+          <button class="req-edit btn btn-ghost btn-sm" onclick="duplicateLastCartonRow()">⧉ Duplicate Last Row</button>
+          <button class="req-edit btn btn-green btn-sm" onclick="addCartonRow()">+ Add Carton Row</button>
+        </div>
       </div>
+      <div style="font-size:10px;color:var(--text3);margin-bottom:8px">Click any cell to edit — changes save automatically. Add items to a row directly underneath it.</div>
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:11px">
           <thead>
             <tr style="color:var(--text3)">
-              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);font-weight:700">Label</th>
-              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700">#</th>
-              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700">L cm</th>
-              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700">W cm</th>
-              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700">H cm</th>
-              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700">kg/ctn</th>
-              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700">CBM</th>
-              <th style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);font-weight:700">Items</th>
-              <th style="padding:6px 8px;border-bottom:1px solid var(--border)"></th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;min-width:90px">Label</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;width:56px">#</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;width:64px">L cm</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;width:64px">W cm</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;width:64px">H cm</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;width:76px">kg/ctn</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;width:80px">CBM</th>
+              <th style="padding:6px 8px;border-bottom:1px solid var(--border);width:28px"></th>
             </tr>
           </thead>
           <tbody id="plm_cartons_tbody"></tbody>
@@ -709,82 +726,11 @@ select option{background:#111520;color:#fff;padding:8px}
   </div>
 </div>
 
-<!-- Add / Edit Carton Row inline form (hidden by default) -->
-<div class="overlay" id="plCartonModal" style="display:none;align-items:center">
-  <div class="modal" style="width:560px;max-width:96vw;padding:24px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
-      <div class="modal-title" id="plCartonModalTitle">Add Carton Row</div>
-      <button class="modal-close" onclick="closePlCartonModal()">✕</button>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="form-group" style="grid-column:1/-1">
-        <label>Carton Label <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">(e.g. "1-15" or "A")</span></label>
-        <input id="plc_label" placeholder="1-15">
-      </div>
-      <div class="form-group">
-        <label>Carton Count</label>
-        <input type="number" id="plc_count" value="1" min="1">
-      </div>
-      <div class="form-group">
-        <label>Weight per Carton (kg)</label>
-        <input type="number" id="plc_weight" placeholder="0.000" step="0.001" min="0">
-      </div>
-      <div class="form-group">
-        <label>Length (cm)</label>
-        <input type="number" id="plc_l" placeholder="0" step="0.1" min="0">
-      </div>
-      <div class="form-group">
-        <label>Width (cm)</label>
-        <input type="number" id="plc_w" placeholder="0" step="0.1" min="0">
-      </div>
-      <div class="form-group">
-        <label>Height (cm)</label>
-        <input type="number" id="plc_h" placeholder="0" step="0.1" min="0">
-      </div>
-      <div class="form-group" style="grid-column:1/-1">
-        <label>CBM Preview</label>
-        <div id="plc_cbm_preview" style="font-size:13px;font-weight:700;color:var(--accent);padding:8px 0">—</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:10px;margin-top:8px">
-      <button class="btn btn-primary" id="plc_save_btn" onclick="saveCartonRow()">Save Row</button>
-      <button class="btn btn-ghost" onclick="closePlCartonModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- Add Carton Item modal -->
-<div class="overlay" id="plItemModal" style="display:none;align-items:center">
-  <div class="modal" style="width:440px;max-width:96vw;padding:24px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
-      <div class="modal-title">Add Item to Carton</div>
-      <button class="modal-close" onclick="closePLItemModal()">✕</button>
-    </div>
-    <div class="form-group">
-      <label>PO Item</label>
-      <select id="pli_item_sel" onchange="pliItemSelected()">
-        <option value="">— select —</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Total Qty (all cartons in this row)</label>
-      <input type="number" id="pli_qty" placeholder="0" step="0.01" min="0">
-    </div>
-    <div class="form-group">
-      <label>Qty per Carton <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">(optional)</span></label>
-      <input type="number" id="pli_qpc" placeholder="auto" step="0.01" min="0">
-    </div>
-    <div style="display:flex;gap:10px;margin-top:8px">
-      <button class="btn btn-primary" onclick="saveCartonItem()">Add Item</button>
-      <button class="btn btn-ghost" onclick="closePLItemModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
 <div class="toast-area" id="toastArea"></div>
 
 <script>
 // ─── State ────────────────────────────────────────────────────────────────────
+const CAN_EDIT_FORWARDER = {{ ('forwarder_edit' in user_permissions) | tojson }};
 let shipments = [], forwarders = [], allPOs = [];
 let currentShipment = null;
 let sortField = 'expected_arrival', sortOrder = 'asc';
@@ -1904,8 +1850,6 @@ function renderGantt() {
 let currentPL = null;
 let currentPLShipmentId = null;
 let plPoItems = [];
-let editingCartonId = null;
-let editingCartonItemCartonId = null;
 
 function renderPLDrawerSection(s) {
   const el = document.getElementById('pl-drawer-section');
@@ -1960,14 +1904,23 @@ async function openPLModal(sid) {
 
   try {
     const r = await fetch(`/api/shipments/${sid}/packing-list`);
-    if (r.ok) { currentPL = await r.json(); populatePLModal(currentPL); }
-    else currentPL = null;
+    if (r.ok) {
+      currentPL = await r.json();
+    } else {
+      // Auto-create a blank packing list so the carton grid is ready immediately —
+      // no separate "save header first" step.
+      const cr = await fetch(`/api/shipments/${sid}/packing-list`,
+        { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({}) });
+      currentPL = cr.ok ? await cr.json() : null;
+    }
+    if (currentPL) populatePLModal(currentPL);
   } catch(e) { currentPL = null; }
 }
 
 function closePLModal() {
   document.getElementById('plModal').style.display = 'none';
   currentPL = null; currentPLShipmentId = null;
+  refresh();
 }
 
 function populatePLModal(pl) {
@@ -1989,32 +1942,88 @@ function renderPLTotals(pl) {
   document.getElementById('plm_t_cbm').textContent  = (+(pl.total_cbm||0)).toFixed(4);
 }
 
+// Keep the shipments list / drawer summary in sync without a full network refresh.
+function syncShipmentPLFromCurrent() {
+  if (!currentPL || !currentPLShipmentId) return;
+  const s = shipments.find(x => x.id === currentPLShipmentId);
+  if (!s) return;
+  s.pl_id              = currentPL.id;
+  s.pl_number           = currentPL.supplier_pl_number;
+  s.pl_total_cartons    = currentPL.total_cartons;
+  s.pl_total_cbm        = currentPL.total_cbm;
+  s.pl_gross_weight_kg  = currentPL.gross_weight_kg;
+  renderTable();
+  renderPLDrawerSection(s);
+}
+
+function cartonItemsHtml(c) {
+  const items = c.items || [];
+  const chips = items.map(it => `
+    <span class="pl-item-chip">
+      <span class="pl-item-chip-name" title="${esc(it.item_name)}">${esc(it.item_name)}</span>
+      <input type="number" class="pl-item-chip-qty" value="${it.quantity!=null?it.quantity:''}" step="0.01" min="0"
+        ${CAN_EDIT_FORWARDER?'':'disabled'}
+        onblur="updateCartonItemQty('${c.id}','${it.id}', this.value)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
+      <span class="pl-item-chip-unit">${esc(it.unit||'')}</span>
+      ${CAN_EDIT_FORWARDER ? `<button type="button" class="pl-item-chip-x" title="Remove item" onclick="removeCartonItem('${c.id}','${it.id}')">✕</button>` : ''}
+    </span>`).join('');
+  const addSelect = CAN_EDIT_FORWARDER ? `
+    <select class="pl-item-add-sel" onchange="addItemToCartonInline('${c.id}', this)">
+      <option value="">+ add item…</option>
+      ${plPoItems.map(pi => `<option value="${pi.id}">${esc(pi.po_number+' · '+pi.item_name)}</option>`).join('')}
+    </select>` : '';
+  return `<div class="pl-items-wrap">${chips}${addSelect}${!chips && !addSelect ? '<span style="color:var(--text3)">—</span>' : ''}</div>`;
+}
+
+function cartonRowHtml(c) {
+  const cbm = c.cbm || 0;
+  const dis = CAN_EDIT_FORWARDER ? '' : 'disabled';
+  return `<tr class="pl-carton-row" data-cid="${c.id}">
+      <td class="pl-cell"><input value="${esc(c.carton_label||'')}" placeholder="1-15" ${dis}
+        onblur="saveCartonField('${c.id}')" onkeydown="cartonFieldKeydown(event)"></td>
+      <td class="pl-cell"><input type="number" class="pl-num" min="1" value="${c.carton_count||1}" ${dis}
+        onblur="saveCartonField('${c.id}')" oninput="liveCbm('${c.id}')" onkeydown="cartonFieldKeydown(event)"></td>
+      <td class="pl-cell"><input type="number" class="pl-num" step="0.1" min="0" value="${c.length_cm!=null?c.length_cm:''}" ${dis}
+        onblur="saveCartonField('${c.id}')" oninput="liveCbm('${c.id}')" onkeydown="cartonFieldKeydown(event)"></td>
+      <td class="pl-cell"><input type="number" class="pl-num" step="0.1" min="0" value="${c.width_cm!=null?c.width_cm:''}" ${dis}
+        onblur="saveCartonField('${c.id}')" oninput="liveCbm('${c.id}')" onkeydown="cartonFieldKeydown(event)"></td>
+      <td class="pl-cell"><input type="number" class="pl-num" step="0.1" min="0" value="${c.height_cm!=null?c.height_cm:''}" ${dis}
+        onblur="saveCartonField('${c.id}')" oninput="liveCbm('${c.id}')" onkeydown="cartonFieldKeydown(event)"></td>
+      <td class="pl-cell"><input type="number" class="pl-num" step="0.001" min="0" value="${c.weight_per_carton_kg!=null?c.weight_per_carton_kg:''}" ${dis}
+        onblur="saveCartonField('${c.id}')" onkeydown="cartonFieldKeydown(event)"></td>
+      <td style="padding:7px 8px;text-align:right;color:var(--cyan);font-weight:700" id="pl_cbm_${c.id}">${cbm.toFixed(4)}</td>
+      <td style="padding:7px 4px;text-align:center">
+        <button class="req-edit btn btn-ghost btn-xs" title="Delete row" onclick="deleteCartonRow('${c.id}')">✕</button>
+      </td>
+    </tr>
+    <tr class="pl-items-row" data-cid="${c.id}">
+      <td colspan="8" style="padding:4px 8px 10px 6px;background:rgba(255,255,255,.02)">${cartonItemsHtml(c)}</td>
+    </tr>`;
+}
+
 function renderPLCartons(cartons) {
   const tbody = document.getElementById('plm_cartons_tbody');
   if (!cartons.length) {
-    tbody.innerHTML = `<tr><td colspan="9" style="padding:14px;color:var(--text3);font-size:11px;text-align:center">No carton rows yet — click + Add Carton Row.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="padding:14px;color:var(--text3);font-size:11px;text-align:center">No carton rows yet — click + Add Carton Row.</td></tr>`;
     return;
   }
-  tbody.innerHTML = cartons.map(c => {
-    const itemsLabel = c.items && c.items.length
-      ? c.items.map(it => `${esc(it.item_name)} ×${it.quantity}`).join(', ')
-      : '<span style="color:var(--text3)">—</span>';
-    return `<tr style="border-bottom:1px solid var(--border)">
-      <td style="padding:7px 8px;font-weight:700">${esc(c.carton_label||'')}</td>
-      <td style="padding:7px 8px;text-align:right">${c.carton_count||1}</td>
-      <td style="padding:7px 8px;text-align:right">${c.length_cm!=null?c.length_cm:'—'}</td>
-      <td style="padding:7px 8px;text-align:right">${c.width_cm!=null?c.width_cm:'—'}</td>
-      <td style="padding:7px 8px;text-align:right">${c.height_cm!=null?c.height_cm:'—'}</td>
-      <td style="padding:7px 8px;text-align:right">${c.weight_per_carton_kg!=null?c.weight_per_carton_kg:'—'}</td>
-      <td style="padding:7px 8px;text-align:right;color:var(--cyan);font-weight:700">${(c.cbm||0).toFixed?((c.cbm||0)).toFixed(4):c.cbm||0}</td>
-      <td style="padding:7px 8px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px">${itemsLabel}</td>
-      <td style="padding:7px 8px;white-space:nowrap">
-        <button class="req-edit btn btn-ghost btn-xs" onclick="openEditCartonRow('${c.id}')">✏</button>
-        <button class="req-edit btn btn-ghost btn-xs" onclick="openAddItemToCarton('${c.id}')">+Item</button>
-        <button class="req-edit btn btn-red btn-xs" onclick="deleteCartonRow('${c.id}')">✕</button>
-      </td>
-    </tr>`;
-  }).join('');
+  tbody.innerHTML = cartons.map(cartonRowHtml).join('');
+}
+
+function refreshCartonRowDom(cid) {
+  const c = (currentPL.cartons||[]).find(x => x.id === cid);
+  if (!c) return;
+  const cell = document.querySelector(`tr.pl-items-row[data-cid="${cid}"] td`);
+  if (cell) cell.innerHTML = cartonItemsHtml(c);
+}
+
+function focusCartonRowLabel(cid) {
+  requestAnimationFrame(() => {
+    const row = document.querySelector(`tr.pl-carton-row[data-cid="${cid}"]`);
+    const inp = row && row.querySelector('input');
+    if (inp) inp.focus();
+  });
 }
 
 function renderReconWarnings(pl) {
@@ -2049,23 +2058,22 @@ function renderReconWarnings(pl) {
 }
 
 async function savePLHeader() {
-  const sid = currentPLShipmentId;
+  if (!currentPL) return;
   const body = {
     supplier_pl_number: document.getElementById('plm_pl_number').value.trim() || null,
     pl_date:            document.getElementById('plm_pl_date').value || null,
     net_weight_kg:      parseFloat(document.getElementById('plm_net_weight').value) || 0,
   };
-  const url    = currentPL ? `/api/packing-list/${currentPL.id}` : `/api/shipments/${sid}/packing-list`;
-  const method = currentPL ? 'PUT' : 'POST';
-  const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-  if (!r.ok) { toast('Failed to save', 'error'); return; }
+  const statusEl = document.getElementById('plm_header_status');
+  statusEl.textContent = 'Saving…';
+  const r = await fetch(`/api/packing-list/${currentPL.id}`,
+    { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (!r.ok) { statusEl.textContent = ''; toast('Failed to save', 'error'); return; }
   currentPL = await r.json();
-  populatePLModal(currentPL);
-  document.getElementById('plm_header_status').textContent = '✓ Saved';
-  setTimeout(() => { document.getElementById('plm_header_status').textContent = ''; }, 2000);
-  await refresh();
-  const s2 = shipments.find(x => x.id === sid);
-  if (s2) renderPLDrawerSection(s2);
+  renderPLTotals(currentPL);
+  statusEl.textContent = '✓ Saved';
+  setTimeout(() => { statusEl.textContent = ''; }, 1500);
+  syncShipmentPLFromCurrent();
 }
 
 async function deletePL() {
@@ -2074,91 +2082,105 @@ async function deletePL() {
   const r = await fetch(`/api/packing-list/${currentPL.id}`, { method:'DELETE' });
   if (!r.ok) { toast('Delete failed', 'error'); return; }
   currentPL = null; closePLModal();
-  await refresh();
 }
 
 function openPLPrint()    { if (currentPL) window.open(`/packing-list/${currentPL.id}/print`, '_blank'); }
 function downloadPLPDF()  { if (currentPL) window.location.href = `/packing-list/${currentPL.id}/pdf`; }
 
-function openAddCartonRow() {
-  editingCartonId = null;
-  document.getElementById('plCartonModalTitle').textContent = 'Add Carton Row';
-  ['plc_label','plc_weight','plc_l','plc_w','plc_h'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('plc_count').value = '1';
-  document.getElementById('plc_cbm_preview').textContent = '—';
-  document.getElementById('plc_save_btn').textContent = 'Add Row';
-  document.getElementById('plCartonModal').style.display = 'flex';
+// ── Inline carton row editing ──────────────────────────────────────────────
+
+function liveCbm(cid) {
+  const row = document.querySelector(`tr.pl-carton-row[data-cid="${cid}"]`);
+  if (!row) return;
+  const inputs = row.querySelectorAll('input');
+  const count = parseInt(inputs[1].value) || 1;
+  const l = parseFloat(inputs[2].value) || 0;
+  const w = parseFloat(inputs[3].value) || 0;
+  const h = parseFloat(inputs[4].value) || 0;
+  const cbm = (l && w && h) ? (l * w * h / 1_000_000) * count : 0;
+  const cell = document.getElementById(`pl_cbm_${cid}`);
+  if (cell) cell.textContent = cbm.toFixed(4);
 }
 
-function openEditCartonRow(cid) {
-  if (!currentPL) return;
-  const c = currentPL.cartons.find(x => x.id === cid);
-  if (!c) return;
-  editingCartonId = cid;
-  document.getElementById('plCartonModalTitle').textContent = 'Edit Carton Row';
-  document.getElementById('plc_label').value  = c.carton_label || '';
-  document.getElementById('plc_count').value  = c.carton_count || 1;
-  document.getElementById('plc_weight').value = c.weight_per_carton_kg != null ? c.weight_per_carton_kg : '';
-  document.getElementById('plc_l').value = c.length_cm != null ? c.length_cm : '';
-  document.getElementById('plc_w').value = c.width_cm  != null ? c.width_cm  : '';
-  document.getElementById('plc_h').value = c.height_cm != null ? c.height_cm : '';
-  document.getElementById('plc_save_btn').textContent = 'Save Changes';
-  updateCbmPreview();
-  document.getElementById('plCartonModal').style.display = 'flex';
+function cartonFieldKeydown(e) {
+  if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
 }
 
-function closePlCartonModal() {
-  document.getElementById('plCartonModal').style.display = 'none'; editingCartonId = null;
-}
-
-function updateCbmPreview() {
-  const l = parseFloat(document.getElementById('plc_l').value) || 0;
-  const w = parseFloat(document.getElementById('plc_w').value) || 0;
-  const h = parseFloat(document.getElementById('plc_h').value) || 0;
-  const n = parseInt(document.getElementById('plc_count').value) || 1;
-  const el = document.getElementById('plc_cbm_preview');
-  if (l && w && h) {
-    const each = (l * w * h) / 1_000_000;
-    el.textContent = `${(each * n).toFixed(4)} CBM total  (${n} × ${each.toFixed(4)} each)`;
-  } else { el.textContent = '—'; }
-}
-
-['plc_l','plc_w','plc_h','plc_count'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener('input', updateCbmPreview);
-});
-
-async function saveCartonRow() {
-  if (!currentPL) return;
+async function saveCartonField(cid) {
+  const row = document.querySelector(`tr.pl-carton-row[data-cid="${cid}"]`);
+  if (!row || !currentPL) return;
+  const inputs = row.querySelectorAll('input');
   const body = {
-    carton_label:         document.getElementById('plc_label').value.trim() || null,
-    carton_count:         parseInt(document.getElementById('plc_count').value) || 1,
-    length_cm:            parseFloat(document.getElementById('plc_l').value)      || null,
-    width_cm:             parseFloat(document.getElementById('plc_w').value)      || null,
-    height_cm:            parseFloat(document.getElementById('plc_h').value)      || null,
-    weight_per_carton_kg: parseFloat(document.getElementById('plc_weight').value) || null,
+    carton_label:         inputs[0].value.trim() || null,
+    carton_count:         parseInt(inputs[1].value) || 1,
+    length_cm:            parseFloat(inputs[2].value) || null,
+    width_cm:             parseFloat(inputs[3].value) || null,
+    height_cm:            parseFloat(inputs[4].value) || null,
+    weight_per_carton_kg: parseFloat(inputs[5].value) || null,
   };
-  const url = editingCartonId
-    ? `/api/packing-list/${currentPL.id}/cartons/${editingCartonId}`
-    : `/api/packing-list/${currentPL.id}/cartons`;
-  const r = await fetch(url, { method: editingCartonId ? 'PUT' : 'POST',
-    headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  await persistCartonRow(cid, body);
+}
+
+async function persistCartonRow(cid, body) {
+  const r = await fetch(`/api/packing-list/${currentPL.id}/cartons/${cid}`,
+    { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   if (!r.ok) { toast('Failed to save carton row', 'error'); return; }
   const data = await r.json();
-  if (editingCartonId) {
-    const idx = currentPL.cartons.findIndex(x => x.id === editingCartonId);
-    if (idx !== -1) currentPL.cartons[idx] = data.carton;
-  } else {
-    currentPL.cartons.push(data.carton);
-  }
+  const idx = currentPL.cartons.findIndex(x => x.id === cid);
+  if (idx !== -1) currentPL.cartons[idx] = data.carton;
   currentPL.total_cartons   = data.pl_totals.total_cartons;
   currentPL.total_cbm       = data.pl_totals.total_cbm;
   currentPL.gross_weight_kg = data.pl_totals.gross_weight_kg;
-  closePlCartonModal();
+  const cbmCell = document.getElementById(`pl_cbm_${cid}`);
+  if (cbmCell) cbmCell.textContent = (data.carton.cbm || 0).toFixed(4);
+  renderPLTotals(currentPL);
+  renderReconWarnings(currentPL);
+  syncShipmentPLFromCurrent();
+}
+
+async function addCartonRow() {
+  if (!currentPL) return;
+  const body = { carton_label: null, carton_count: 1, length_cm: null, width_cm: null, height_cm: null, weight_per_carton_kg: null };
+  const r = await fetch(`/api/packing-list/${currentPL.id}/cartons`,
+    { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (!r.ok) { toast('Failed to add row', 'error'); return; }
+  const data = await r.json();
+  currentPL.cartons = currentPL.cartons || [];
+  currentPL.cartons.push(data.carton);
+  currentPL.total_cartons   = data.pl_totals.total_cartons;
+  currentPL.total_cbm       = data.pl_totals.total_cbm;
+  currentPL.gross_weight_kg = data.pl_totals.gross_weight_kg;
   renderPLCartons(currentPL.cartons);
   renderPLTotals(currentPL);
   renderReconWarnings(currentPL);
-  await refresh();
+  syncShipmentPLFromCurrent();
+  focusCartonRowLabel(data.carton.id);
+}
+
+async function duplicateLastCartonRow() {
+  if (!currentPL) return;
+  const cartons = currentPL.cartons || [];
+  if (!cartons.length) { await addCartonRow(); return; }
+  const last = cartons[cartons.length - 1];
+  const body = {
+    carton_label: null,
+    carton_count: last.carton_count || 1,
+    length_cm: last.length_cm, width_cm: last.width_cm, height_cm: last.height_cm,
+    weight_per_carton_kg: last.weight_per_carton_kg,
+  };
+  const r = await fetch(`/api/packing-list/${currentPL.id}/cartons`,
+    { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (!r.ok) { toast('Failed to add row', 'error'); return; }
+  const data = await r.json();
+  currentPL.cartons.push(data.carton);
+  currentPL.total_cartons   = data.pl_totals.total_cartons;
+  currentPL.total_cbm       = data.pl_totals.total_cbm;
+  currentPL.gross_weight_kg = data.pl_totals.gross_weight_kg;
+  renderPLCartons(currentPL.cartons);
+  renderPLTotals(currentPL);
+  renderReconWarnings(currentPL);
+  syncShipmentPLFromCurrent();
+  focusCartonRowLabel(data.carton.id);
 }
 
 async function deleteCartonRow(cid) {
@@ -2173,42 +2195,50 @@ async function deleteCartonRow(cid) {
   renderPLCartons(currentPL.cartons);
   renderPLTotals(currentPL);
   renderReconWarnings(currentPL);
-  await refresh();
+  syncShipmentPLFromCurrent();
 }
 
-function openAddItemToCarton(cid) {
-  editingCartonItemCartonId = cid;
-  const sel = document.getElementById('pli_item_sel');
-  sel.innerHTML = '<option value="">— select —</option>' +
-    plPoItems.map(pi => `<option value="${pi.id}">${esc(pi.po_number+' · '+pi.item_name)} (${pi.qty} ${pi.unit||''})</option>`).join('');
-  document.getElementById('pli_qty').value = '';
-  document.getElementById('pli_qpc').value = '';
-  document.getElementById('plItemModal').style.display = 'flex';
-}
+// ── Inline per-carton item editing ─────────────────────────────────────────
 
-function closePLItemModal() {
-  document.getElementById('plItemModal').style.display = 'none';
-  editingCartonItemCartonId = null;
-}
-
-async function saveCartonItem() {
-  if (!currentPL || !editingCartonItemCartonId) return;
-  const po_item_id = document.getElementById('pli_item_sel').value;
-  if (!po_item_id) { toast('Select an item', 'error'); return; }
-  const body = {
-    po_item_id,
-    quantity:       parseFloat(document.getElementById('pli_qty').value) || 0,
-    qty_per_carton: parseFloat(document.getElementById('pli_qpc').value) || null,
-  };
-  const r = await fetch(
-    `/api/packing-list/${currentPL.id}/cartons/${editingCartonItemCartonId}/items`,
-    { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+async function addItemToCartonInline(cid, selectEl) {
+  const po_item_id = selectEl.value;
+  if (!po_item_id) return;
+  selectEl.value = '';
+  const r = await fetch(`/api/packing-list/${currentPL.id}/cartons/${cid}/items`,
+    { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ po_item_id, quantity: 0 }) });
   if (!r.ok) { toast('Failed to add item', 'error'); return; }
   const item = await r.json();
-  const c = currentPL.cartons.find(x => x.id === editingCartonItemCartonId);
-  if (c) c.items.push(item);
-  closePLItemModal();
-  renderPLCartons(currentPL.cartons);
+  const c = currentPL.cartons.find(x => x.id === cid);
+  if (c) { c.items = c.items || []; c.items.push(item); }
+  refreshCartonRowDom(cid);
+  renderReconWarnings(currentPL);
+  requestAnimationFrame(() => {
+    const row = document.querySelector(`tr.pl-items-row[data-cid="${cid}"]`);
+    const qtyInputs = row ? row.querySelectorAll('.pl-item-chip-qty') : [];
+    const last = qtyInputs[qtyInputs.length - 1];
+    if (last) { last.focus(); last.select(); }
+  });
+}
+
+async function updateCartonItemQty(cid, iid, value) {
+  const qty = parseFloat(value) || 0;
+  const c = currentPL.cartons.find(x => x.id === cid);
+  const existing = c && (c.items || []).find(x => x.id === iid);
+  const qpc = existing ? existing.qty_per_carton : null;
+  const r = await fetch(`/api/packing-list/${currentPL.id}/cartons/${cid}/items/${iid}`,
+    { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ quantity: qty, qty_per_carton: qpc }) });
+  if (!r.ok) { toast('Failed to update item', 'error'); return; }
+  const item = await r.json();
+  if (c) { const idx = (c.items || []).findIndex(x => x.id === iid); if (idx !== -1) c.items[idx] = item; }
+  renderReconWarnings(currentPL);
+}
+
+async function removeCartonItem(cid, iid) {
+  const r = await fetch(`/api/packing-list/${currentPL.id}/cartons/${cid}/items/${iid}`, { method:'DELETE' });
+  if (!r.ok) { toast('Delete failed', 'error'); return; }
+  const c = currentPL.cartons.find(x => x.id === cid);
+  if (c) c.items = (c.items || []).filter(x => x.id !== iid);
+  refreshCartonRowDom(cid);
   renderReconWarnings(currentPL);
 }
 
