@@ -2,291 +2,229 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Packing List {% if pos %}— {{ pos[0].po_number }}{% endif %}</title>
+<title>Packing List{% if pos %} — {{ pos[0].po_number }}{% endif %}</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-  /* ── Base ── */
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    font-size: 10pt;
-    color: #111;
-    background: #fff;
-    padding: 18mm 16mm;
-  }
-
-  /* ── Print: hide nav / buttons, A4 margins ── */
-  @media print {
-    @page { size: A4 portrait; margin: 16mm 14mm; }
-    body { padding: 0; }
-    .no-print { display: none !important; }
-    table { page-break-inside: auto; }
-    tr { page-break-inside: avoid; page-break-after: auto; }
-  }
-
-  /* ── Header ── */
-  .doc-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    border-bottom: 2px solid #111;
-    padding-bottom: 10px;
-    margin-bottom: 14px;
-  }
-  .company-block h1 { font-size: 16pt; font-weight: 900; letter-spacing: -.03em; }
-  .company-block p  { font-size: 8pt; color: #555; margin-top: 2px; }
-  .doc-type {
-    font-size: 22pt;
-    font-weight: 900;
-    letter-spacing: .06em;
-    color: #1a1a1a;
-    text-transform: uppercase;
-  }
-
-  /* ── Meta block ── */
-  .meta-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px 16px;
-    background: #f7f7f7;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 10px 14px;
-    margin-bottom: 16px;
-    font-size: 9pt;
-  }
-  .meta-grid .label { color: #666; font-weight: 700; text-transform: uppercase;
-                       letter-spacing: .06em; font-size: 7.5pt; }
-  .meta-grid .value { font-weight: 700; color: #111; font-size: 10pt; }
-
-  /* ── Cartons table ── */
-  table.cartons {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 9pt;
-    margin-bottom: 0;
-  }
-  table.cartons thead tr {
-    background: #1a1a1a;
-    color: #fff;
-  }
-  table.cartons th {
-    padding: 7px 8px;
-    text-align: left;
-    font-size: 8pt;
-    font-weight: 700;
-    letter-spacing: .05em;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-  table.cartons th.r, table.cartons td.r { text-align: right; }
-  table.cartons th.c, table.cartons td.c { text-align: center; }
-  table.cartons tbody tr:nth-child(even) { background: #f9f9f9; }
-  table.cartons tbody tr:hover { background: #f0f0f0; }
-  table.cartons td {
-    padding: 6px 8px;
-    border-bottom: 1px solid #eee;
-    vertical-align: top;
-  }
-  .item-list { font-size: 8pt; color: #333; }
-  .item-list div { margin-bottom: 1px; }
-
-  /* ── Totals row ── */
-  table.cartons tfoot tr {
-    background: #1a1a1a;
-    color: #fff;
-    font-weight: 900;
-  }
-  table.cartons tfoot td {
-    padding: 8px 8px;
-    border: 2px solid #1a1a1a;
-    font-size: 9.5pt;
-  }
-
-  /* ── Footer ── */
-  .doc-footer {
-    margin-top: 20px;
-    padding-top: 8px;
-    border-top: 1px solid #ccc;
-    display: flex;
-    justify-content: space-between;
-    font-size: 7.5pt;
-    color: #888;
-  }
-
-  /* ── Print button (screen only) ── */
-  .print-bar {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-  }
-  .btn-print {
-    padding: 8px 18px;
-    background: #111;
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  .btn-back {
-    padding: 8px 18px;
-    background: transparent;
-    color: #111;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: inherit;
-    text-decoration: none;
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Noto Sans SC','Segoe UI',Arial,sans-serif;font-size:12px;color:#111;background:#fff;padding:32px 36px;max-width:960px;margin:0 auto}
+  .po-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:3px solid #1e3a8a;margin-bottom:14px}
+  .po-main-title{font-size:28px;font-weight:700;color:#1e3a8a;letter-spacing:-.02em;line-height:1}
+  .po-subtitle{font-size:11px;color:#6b7280;margin-top:3px;letter-spacing:.06em;text-transform:uppercase}
+  .po-header-right{text-align:right;font-size:12px}
+  .po-meta-row{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-bottom:4px;color:#374151}
+  .po-meta-row strong{color:#111;min-width:80px;text-align:right}
+  .parties-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:10px}
+  .party-box{padding:10px 14px}
+  .party-box:first-child{border-right:1px solid #e5e7eb;background:#f9fafb}
+  .party-box:last-child{background:#f0f6ff}
+  .party-label{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6b7280;margin-bottom:8px;display:flex;align-items:center;gap:5px}
+  .party-label::before{content:'';display:block;width:10px;height:2px;background:#1e3a8a;border-radius:1px}
+  .delivery-box{background:#fff8f0;border:1.5px solid #f97316;border-radius:8px;padding:8px 14px;margin-bottom:10px}
+  .delivery-box-title{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#c2410c;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+  .delivery-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 14px;font-size:11px}
+  .field-label{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9ca3af;margin-bottom:3px}
+  .field-value{font-weight:600;color:#111;font-size:13px}
+  table{width:100%;border-collapse:collapse;margin-bottom:0}
+  thead tr{background:#1e3a8a}
+  thead th{padding:7px 10px;color:#fff;font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;text-align:left}
+  thead th.r{text-align:right}
+  thead th.c{text-align:center}
+  tbody tr:nth-child(even){background:#f8faff}
+  tbody td{padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;vertical-align:top}
+  tbody td.r{text-align:right}
+  tbody td.c{text-align:center}
+  tfoot tr{background:#1e3a8a}
+  tfoot td{padding:8px 10px;color:#fff;font-weight:700;font-size:12px}
+  tfoot td.r{text-align:right}
+  .table-wrap{border:1px solid #d1d5db;border-radius:8px;overflow:hidden;margin-bottom:10px}
+  .item-lines{font-size:10px;line-height:1.6}
+  .item-lines div{color:#374151}
+  .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-top:16px}
+  .sig-box{border-top:2px solid #d1d5db;padding-top:8px}
+  .sig-label{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9ca3af;margin-bottom:4px}
+  .sig-name{font-size:12px;font-weight:700;color:#111}
+  .sig-sub{font-size:10px;color:#6b7280;margin-top:2px}
+  .footer-note{margin-top:12px;padding-top:8px;border-top:1px solid #e5e7eb;font-size:9px;color:#9ca3af;text-align:center;letter-spacing:.04em}
+  .no-print{margin-bottom:18px;display:flex;gap:10px}
+  .btn-print{padding:8px 18px;background:#1e3a8a;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit}
+  .btn-back{padding:8px 18px;background:transparent;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none}
+  @media print{
+    .no-print{display:none!important}
+    body{padding:10px 14px}
+    @page{margin:6mm 8mm;size:A4 portrait}
+    table{page-break-inside:auto}
+    tr{page-break-inside:avoid;page-break-after:auto}
   }
 </style>
 </head>
 <body>
 
-<!-- Screen-only buttons -->
-<div class="print-bar no-print">
+<!-- Screen-only toolbar -->
+<div class="no-print">
   <button class="btn-print" onclick="window.print()">🖨 Print</button>
   <a class="btn-back" href="javascript:history.back()">← Back</a>
 </div>
 
-<!-- Document header -->
-<div class="doc-header">
-  <div class="company-block">
-    <h1>{{ company_name or 'Ocean Spas Inc.' }}</h1>
-    {% if company_address %}<p>{{ company_address }}</p>{% endif %}
-  </div>
-  <div class="doc-type">Packing List</div>
-</div>
-
-<!-- Meta block -->
-<div class="meta-grid">
-  {% if pos %}
+<!-- ── Header ── -->
+<div class="po-header">
   <div>
-    <div class="label">PO Number(s)</div>
-    <div class="value">{{ pos | map(attribute='po_number') | join(' / ') }}</div>
+    <div class="po-main-title">PACKING LIST</div>
+    <div class="po-subtitle">{{ company_name or 'Ocean Spas Inc.' }}</div>
   </div>
-  {% if supplier_name %}
-  <div>
-    <div class="label">Supplier</div>
-    <div class="value">{{ supplier_name }}</div>
-  </div>
-  {% else %}
-  <div></div>
-  {% endif %}
-  {% endif %}
-
-  <div>
-    <div class="label">Shipment Ref</div>
-    <div class="value">{{ shipment.booking_ref or shipment.id[:8] }}</div>
-  </div>
-
-  {% if pl.supplier_pl_number %}
-  <div>
-    <div class="label">Supplier PL No.</div>
-    <div class="value">{{ pl.supplier_pl_number }}</div>
-  </div>
-  {% endif %}
-
-  {% if pl.pl_date %}
-  <div>
-    <div class="label">PL Date</div>
-    <div class="value">{{ pl.pl_date }}</div>
-  </div>
-  {% endif %}
-
-  <div>
-    <div class="label">Departure</div>
-    <div class="value">{{ shipment.departure_date }}</div>
-  </div>
-
-  <div>
-    <div class="label">Expected Arrival</div>
-    <div class="value">{{ shipment.expected_arrival }}</div>
-  </div>
-
-  <div>
-    <div class="label">Forwarder</div>
-    <div class="value">{{ shipment.forwarder_name or '—' }}</div>
+  <div class="po-header-right">
+    {% if pos %}<div class="po-meta-row"><strong>PO No:</strong>&nbsp;{{ pos | map(attribute='po_number') | join(' / ') }}</div>{% endif %}
+    {% if pl.supplier_pl_number %}<div class="po-meta-row"><strong>Supplier PL:</strong>&nbsp;{{ pl.supplier_pl_number }}</div>{% endif %}
+    {% if pl.pl_date %}<div class="po-meta-row"><strong>PL Date:</strong>&nbsp;{{ pl.pl_date }}</div>{% endif %}
+    <div class="po-meta-row"><strong>Shipment Ref:</strong>&nbsp;{{ shipment.booking_ref or shipment.id[:8] }}</div>
   </div>
 </div>
 
-<!-- Cartons table -->
+<!-- ── Parties ── -->
+<div class="parties-grid">
+  <div class="party-box">
+    <div class="party-label">Buyer / Importer · 买方</div>
+    <div style="font-size:15px;font-weight:700;color:#111;margin-bottom:3px">{{ company_name or 'Ocean Spas Inc.' }}</div>
+    {% if company_address %}<div style="color:#4b5563;font-size:11px">{{ company_address }}</div>{% endif %}
+  </div>
+  <div class="party-box">
+    <div class="party-label">Supplier / Vendor · 供应商</div>
+    {% if supplier_name %}
+      <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:3px">{{ supplier_name }}</div>
+    {% else %}
+      <div style="color:#9ca3af;font-size:11px">—</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Shipment & Cargo Details ── -->
+<div class="delivery-box">
+  <div class="delivery-box-title">Shipment &amp; Cargo Details · 货物与运输信息</div>
+  <div class="delivery-grid">
+    <div>
+      <div class="field-label">Forwarder · 货运代理</div>
+      <div class="field-value">{{ shipment.forwarder_name or '—' }}</div>
+    </div>
+    <div>
+      <div class="field-label">Departure · 发货日</div>
+      <div class="field-value">{{ shipment.departure_date or '—' }}</div>
+    </div>
+    <div>
+      <div class="field-label">Expected Arrival · 预计到港</div>
+      <div class="field-value">{{ shipment.expected_arrival or '—' }}</div>
+    </div>
+    <div>
+      <div class="field-label">Status · 状态</div>
+      <div class="field-value">{{ shipment.status or '—' }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Cargo Totals Summary ── -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid #dbeafe;border-radius:8px;overflow:hidden;margin-bottom:10px;background:#f0f6ff">
+  <div style="padding:10px 14px;border-right:1px solid #dbeafe">
+    <div class="field-label" style="color:#1e40af">Total Cartons · 箱数</div>
+    <div style="font-size:20px;font-weight:700;color:#1e3a8a">{{ pl.total_cartons or 0 }}</div>
+  </div>
+  <div style="padding:10px 14px;border-right:1px solid #dbeafe">
+    <div class="field-label" style="color:#1e40af">Gross Weight · 毛重</div>
+    <div style="font-size:20px;font-weight:700;color:#1e3a8a">{{ "%.3f"|format(pl.gross_weight_kg or 0) }} <span style="font-size:12px;font-weight:400">kg</span></div>
+  </div>
+  <div style="padding:10px 14px;border-right:1px solid #dbeafe">
+    <div class="field-label" style="color:#1e40af">Net Weight · 净重</div>
+    <div style="font-size:20px;font-weight:700;color:#1e3a8a">{{ "%.3f"|format(pl.net_weight_kg or 0) }} <span style="font-size:12px;font-weight:400">kg</span></div>
+  </div>
+  <div style="padding:10px 14px">
+    <div class="field-label" style="color:#1e40af">Total CBM · 体积</div>
+    <div style="font-size:20px;font-weight:700;color:#1e3a8a">{{ "%.4f"|format(pl.total_cbm or 0) }} <span style="font-size:12px;font-weight:400">m³</span></div>
+  </div>
+</div>
+
+<!-- ── Cartons Table ── -->
 {% if pl.cartons %}
-<table class="cartons">
-  <thead>
-    <tr>
-      <th>Carton No.</th>
-      <th class="r">#</th>
-      <th>Item Description</th>
-      <th class="r">Qty</th>
-      <th class="c">Dimensions (L×W×H cm)</th>
-      <th class="r">Wt/Ctn (kg)</th>
-      <th class="r">CBM</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for c in pl.cartons %}
-      {% set cbm = ((c.length_cm or 0) * (c.width_cm or 0) * (c.height_cm or 0) / 1000000.0) * (c.carton_count or 1) %}
+<div class="table-wrap">
+  <table>
+    <thead>
       <tr>
-        <td><strong>{{ c.carton_label or '—' }}</strong></td>
-        <td class="r">{{ c.carton_count or 1 }}</td>
-        <td>
-          {% if c['items'] %}
-            <div class="item-list">
-              {% for it in c['items'] %}
-                <div>{{ it.item_name }}{% if it.qty_per_carton %} ({{ it.qty_per_carton }}/ctn){% endif %}</div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <span style="color:#999">—</span>
-          {% endif %}
-        </td>
-        <td class="r">
-          {% if c['items'] %}
-            <div class="item-list">
-              {% for it in c['items'] %}
-                <div>{{ it.quantity or '—' }} {{ it.unit or '' }}</div>
-              {% endfor %}
-            </div>
-          {% else %}—{% endif %}
-        </td>
-        <td class="c">
-          {% if c.length_cm and c.width_cm and c.height_cm %}
-            {{ c.length_cm }}×{{ c.width_cm }}×{{ c.height_cm }}
-          {% else %}—{% endif %}
-        </td>
-        <td class="r">{% if c.weight_per_carton_kg %}{{ "%.3f"|format(c.weight_per_carton_kg) }}{% else %}—{% endif %}</td>
-        <td class="r">{{ "%.4f"|format(cbm) if cbm else '—' }}</td>
+        <th>Carton No. · 箱号</th>
+        <th class="c"># Ctns</th>
+        <th>Item Description · 品名</th>
+        <th class="r">Qty · 数量</th>
+        <th class="c">Dimensions (L×W×H cm)</th>
+        <th class="r">Wt/Ctn (kg)</th>
+        <th class="r">CBM</th>
       </tr>
-    {% endfor %}
-  </tbody>
-  <tfoot>
-    <tr>
-      <td><strong>TOTALS</strong></td>
-      <td class="r"><strong>{{ pl.total_cartons or 0 }}</strong></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td class="r">
-        <strong>{{ "%.3f"|format(pl.gross_weight_kg or 0) }} kg</strong>
-        {% if pl.net_weight_kg %}<br><span style="font-weight:400;font-size:8pt">(net {{ "%.3f"|format(pl.net_weight_kg) }} kg)</span>{% endif %}
-      </td>
-      <td class="r"><strong>{{ "%.4f"|format(pl.total_cbm or 0) }}</strong></td>
-    </tr>
-  </tfoot>
-</table>
+    </thead>
+    <tbody>
+      {% for c in pl.cartons %}
+        {% set cbm = ((c.length_cm or 0) * (c.width_cm or 0) * (c.height_cm or 0) / 1000000.0) * (c.carton_count or 1) %}
+        <tr>
+          <td><strong>{{ c.carton_label or '—' }}</strong></td>
+          <td class="c">{{ c.carton_count or 1 }}</td>
+          <td>
+            {% if c['items'] %}
+              <div class="item-lines">
+                {% for it in c['items'] %}
+                  <div>{{ it.item_name }}{% if it.qty_per_carton %} <span style="color:#6b7280;font-size:9px">({{ it.qty_per_carton }}/ctn)</span>{% endif %}</div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <span style="color:#9ca3af">—</span>
+            {% endif %}
+          </td>
+          <td class="r">
+            {% if c['items'] %}
+              <div class="item-lines" style="text-align:right">
+                {% for it in c['items'] %}
+                  <div>{{ it.quantity or '—' }} {{ it.unit or '' }}</div>
+                {% endfor %}
+              </div>
+            {% else %}—{% endif %}
+          </td>
+          <td class="c">
+            {% if c.length_cm and c.width_cm and c.height_cm %}
+              {{ c.length_cm }}×{{ c.width_cm }}×{{ c.height_cm }}
+            {% else %}—{% endif %}
+          </td>
+          <td class="r">{% if c.weight_per_carton_kg %}{{ "%.3f"|format(c.weight_per_carton_kg) }}{% else %}—{% endif %}</td>
+          <td class="r" style="color:#1e40af;font-weight:600">{{ "%.4f"|format(cbm) if cbm else '—' }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td><strong>TOTALS · 合计</strong></td>
+        <td class="c"><strong>{{ pl.total_cartons or 0 }}</strong></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td class="r">
+          <strong>{{ "%.3f"|format(pl.gross_weight_kg or 0) }} kg</strong>
+          {% if pl.net_weight_kg %}<br><span style="font-size:9px;font-weight:400;opacity:.8">net {{ "%.3f"|format(pl.net_weight_kg) }} kg</span>{% endif %}
+        </td>
+        <td class="r"><strong>{{ "%.4f"|format(pl.total_cbm or 0) }} m³</strong></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
 {% else %}
-<p style="color:#999;font-style:italic;margin-top:20px">No carton rows added yet.</p>
+<div style="padding:20px;text-align:center;color:#9ca3af;font-style:italic;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:10px">No carton rows added yet.</div>
 {% endif %}
 
-<!-- Footer -->
-<div class="doc-footer">
-  <span>Generated: {{ now }}</span>
-  <span>{{ company_name or 'Ocean Spas Inc.' }} — Confidential</span>
+<!-- ── Signature ── -->
+<div class="sig-grid">
+  <div class="sig-box">
+    <div class="sig-label">Authorised Signatory — Buyer · 买方授权签字</div>
+    <div class="sig-name">{{ company_name or 'Ocean Spas Inc.' }}</div>
+    <div class="sig-sub">Signature &amp; Stamp · 签名盖章</div>
+  </div>
+  <div class="sig-box">
+    <div class="sig-label">Accepted — Supplier · 供应商确认</div>
+    <div class="sig-name">{{ supplier_name or '___________________________' }}</div>
+    <div class="sig-sub">Signature &amp; Stamp · 签名盖章</div>
+  </div>
 </div>
+
+<div class="footer-note">This is a computer-generated Packing List · Generated: {{ now }}</div>
 
 </body>
 </html>
