@@ -1968,10 +1968,12 @@ function cartonItemsHtml(c) {
       <span class="pl-item-chip-unit">${esc(it.unit||'')}</span>
       ${CAN_EDIT_FORWARDER ? `<button type="button" class="pl-item-chip-x" title="Remove item" onclick="removeCartonItem('${c.id}','${it.id}')">✕</button>` : ''}
     </span>`).join('');
-  const addSelect = CAN_EDIT_FORWARDER ? `
+  const usedIds = new Set(items.map(it => it.po_item_id));
+  const availableItems = plPoItems.filter(pi => !usedIds.has(pi.id));
+  const addSelect = CAN_EDIT_FORWARDER && availableItems.length ? `
     <select class="pl-item-add-sel" onchange="addItemToCartonInline('${c.id}', this)">
       <option value="">+ add item…</option>
-      ${plPoItems.map(pi => `<option value="${pi.id}">${esc(pi.po_number+' · '+pi.item_name)}</option>`).join('')}
+      ${availableItems.map(pi => `<option value="${pi.id}">${esc(pi.po_number+' · '+pi.item_name)}</option>`).join('')}
     </select>` : '';
   return `<div class="pl-items-wrap">${chips}${addSelect}${!chips && !addSelect ? '<span style="color:var(--text3)">—</span>' : ''}</div>`;
 }
