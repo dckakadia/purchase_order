@@ -32,8 +32,10 @@ with get_db() as conn:
 
 DATA_DIR   = os.path.join(os.path.dirname(__file__), "data", "po")
 ATTACH_DIR = os.path.join(DATA_DIR, "attachments")
+PL_DIR     = os.path.join(DATA_DIR, "packing-lists")
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(ATTACH_DIR, exist_ok=True)
+os.makedirs(PL_DIR, exist_ok=True)
 
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/"
@@ -5664,13 +5666,19 @@ def get_shipment_items(sid):
 
 @app.route("/api/shipments", methods=["GET"])
 def get_shipments():
-    """Return all active (non-deleted) shipments with forwarder name and linked POs."""
+    """Return all active (non-deleted) shipments with forwarder name, linked POs, and PL summary."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT s.*, f.name AS forwarder_name
+            SELECT s.*, f.name AS forwarder_name,
+                   pl.id          AS pl_id,
+                   pl.total_cartons    AS pl_total_cartons,
+                   pl.gross_weight_kg  AS pl_gross_weight_kg,
+                   pl.total_cbm        AS pl_total_cbm,
+                   pl.supplier_pl_number AS pl_number
             FROM shipments s
             LEFT JOIN forwarders f ON f.id = s.forwarder_id
+            LEFT JOIN packing_lists pl ON pl.shipment_id = s.id
             WHERE s.deleted_at IS NULL
             ORDER BY s.expected_arrival ASC
         """)
@@ -8201,6 +8209,390 @@ def backup_status():
         "speedLabel": backup_state.get("speedLabel"),
         "etaSeconds": backup_state.get("etaSeconds")
     })
+
+# ── PACKING LISTS ─────────────────────────────────────────────────────────────
+
+def _pl_cbm(length_cm, width_cm, height_cm, carton_count):
+    if length_cm and width_cm and height_cm:
+        return round((length_cm * width_cm * height_cm / 1_000_000.0) * (carton_count or 1), 4)
+    return 0.0
+
+
+def _recalculate_pl_totals(cursor, pl_id):
+    """Recompute total_cartons, total_cbm, gross_weight_kg from cartons and write back."""
+    cursor.execute("""
+        SELECT
+            COALESCE(SUM(carton_count), 0) AS tc,
+            COALESCE(SUM(
+                CASE WHEN length_cm IS NOT NULL AND width_cm IS NOT NULL AND height_cm IS NOT NULL
+                THEN (length_cm * width_cm * height_cm / 1000000.0) * COALESCE(carton_count, 1)
+                ELSE 0 END), 0) AS cbm,
+            COALESCE(SUM(
+                CASE WHEN weight_per_carton_kg IS NOT NULL
+                THEN weight_per_carton_kg * COALESCE(carton_count, 1)
+                ELSE 0 END), 0) AS gw
+        FROM packing_list_cartons WHERE packing_list_id = ?
+    """, (pl_id,))
+    row = cursor.fetchone()
+    cursor.execute("""
+        UPDATE packing_lists SET
+            total_cartons   = ?,
+            total_cbm       = ?,
+            gross_weight_kg = ?,
+            updated_at      = CURRENT_TIMESTAMP
+        WHERE id = ?
+    """, (int(row['tc']), round(float(row['cbm']), 4), round(float(row['gw']), 3), pl_id))
+
+
+def _build_pl_response(cursor, pl_row):
+    """Return full PL dict with cartons (CBM computed) and their items."""
+    pl = dict(pl_row)
+    cursor.execute("""
+        SELECT id, carton_label, carton_count, length_cm, width_cm, height_cm, weight_per_carton_kg
+        FROM packing_list_cartons WHERE packing_list_id = ? ORDER BY rowid
+    """, (pl['id'],))
+    cartons = []
+    for c in cursor.fetchall():
+        ct = dict(c)
+        ct['cbm'] = _pl_cbm(ct['length_cm'], ct['width_cm'], ct['height_cm'], ct['carton_count'])
+        cursor.execute("""
+            SELECT plci.id, plci.po_item_id, plci.quantity, plci.qty_per_carton,
+                   poi.item_name, poi.unit, poi.qty AS po_qty
+            FROM packing_list_carton_items plci
+            JOIN po_items poi ON poi.id = plci.po_item_id
+            WHERE plci.carton_id = ?
+        """, (ct['id'],))
+        ct['items'] = [dict(r) for r in cursor.fetchall()]
+        cartons.append(ct)
+    pl['cartons'] = cartons
+    return pl
+
+
+def _pl_shipment_info(cursor, shipment_id):
+    """Return (shipment dict, list-of-PO-dicts, supplier_name, company_name, company_address)."""
+    cursor.execute("""
+        SELECT s.*, f.name AS forwarder_name
+        FROM shipments s
+        LEFT JOIN forwarders f ON f.id = s.forwarder_id
+        WHERE s.id = ?
+    """, (shipment_id,))
+    shipment = dict(cursor.fetchone())
+    cursor.execute("""
+        SELECT po.po_number, po.supplier_snapshot
+        FROM shipment_po_link spl
+        JOIN purchase_orders po ON po.id = spl.po_id
+        WHERE spl.shipment_id = ?
+        ORDER BY spl.part_no, po.po_number
+    """, (shipment_id,))
+    raw_pos = [dict(r) for r in cursor.fetchall()]
+    pos = []
+    supplier_name = ''
+    for p in raw_pos:
+        snap = json.loads(p.get('supplier_snapshot') or '{}')
+        p['supplier_name'] = snap.get('name') or snap.get('company') or ''
+        if not supplier_name and p['supplier_name']:
+            supplier_name = p['supplier_name']
+        pos.append(p)
+    cursor.execute("SELECT value FROM settings WHERE key = 'company_name'")
+    row = cursor.fetchone()
+    company_name = row['value'] if row else 'Ocean Spas Inc.'
+    cursor.execute("SELECT value FROM settings WHERE key = 'company_address'")
+    row = cursor.fetchone()
+    company_address = row['value'] if row else ''
+    return shipment, pos, supplier_name, company_name, company_address
+
+
+@app.route("/api/shipments/<sid>/packing-list", methods=["GET"])
+@require_permission("forwarder_dashboard")
+def get_packing_list(sid):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM packing_lists WHERE shipment_id = ?", (sid,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Not found"}), 404
+        return jsonify(_build_pl_response(cursor, row))
+
+
+@app.route("/api/shipments/<sid>/packing-list", methods=["POST"])
+@require_permission("forwarder_edit")
+def create_or_update_packing_list(sid):
+    req = request.get_json(silent=True) or {}
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM shipments WHERE id = ? AND deleted_at IS NULL", (sid,))
+        if not cursor.fetchone():
+            return jsonify({"error": "Shipment not found"}), 404
+        cursor.execute("SELECT id FROM packing_lists WHERE shipment_id = ?", (sid,))
+        existing = cursor.fetchone()
+        if existing:
+            pl_id = existing['id']
+            cursor.execute("""
+                UPDATE packing_lists SET
+                    supplier_pl_number = ?,
+                    pl_date            = ?,
+                    net_weight_kg      = ?,
+                    updated_at         = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (req.get('supplier_pl_number'), req.get('pl_date'),
+                  req.get('net_weight_kg') or 0, pl_id))
+            status_code = 200
+        else:
+            pl_id = str(uuid.uuid4())
+            cursor.execute("""
+                INSERT INTO packing_lists (id, shipment_id, supplier_pl_number, pl_date, net_weight_kg)
+                VALUES (?, ?, ?, ?, ?)
+            """, (pl_id, sid, req.get('supplier_pl_number'), req.get('pl_date'),
+                  req.get('net_weight_kg') or 0))
+            status_code = 201
+        cursor.execute("SELECT * FROM packing_lists WHERE id = ?", (pl_id,))
+        return jsonify(_build_pl_response(cursor, cursor.fetchone())), status_code
+
+
+@app.route("/api/packing-list/<plid>", methods=["PUT"])
+@require_permission("forwarder_edit")
+def update_packing_list(plid):
+    req = request.get_json(silent=True) or {}
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM packing_lists WHERE id = ?", (plid,))
+        if not cursor.fetchone():
+            return jsonify({"error": "Not found"}), 404
+        cursor.execute("""
+            UPDATE packing_lists SET
+                supplier_pl_number = ?,
+                pl_date            = ?,
+                net_weight_kg      = ?,
+                updated_at         = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (req.get('supplier_pl_number'), req.get('pl_date'),
+              req.get('net_weight_kg'), plid))
+        cursor.execute("SELECT * FROM packing_lists WHERE id = ?", (plid,))
+        return jsonify(_build_pl_response(cursor, cursor.fetchone()))
+
+
+@app.route("/api/packing-list/<plid>", methods=["DELETE"])
+@require_permission("forwarder_edit")
+def delete_packing_list(plid):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM packing_lists WHERE id = ?", (plid,))
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Not found"}), 404
+        return jsonify({"success": True})
+
+
+@app.route("/api/packing-list/<plid>/cartons", methods=["POST"])
+@require_permission("forwarder_edit")
+def add_carton(plid):
+    req = request.get_json(silent=True) or {}
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM packing_lists WHERE id = ?", (plid,))
+        if not cursor.fetchone():
+            return jsonify({"error": "Not found"}), 404
+        cid = str(uuid.uuid4())
+        cursor.execute("""
+            INSERT INTO packing_list_cartons
+            (id, packing_list_id, carton_label, carton_count, length_cm, width_cm, height_cm, weight_per_carton_kg)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (cid, plid,
+              req.get('carton_label'),
+              int(req.get('carton_count') or 1),
+              req.get('length_cm'), req.get('width_cm'), req.get('height_cm'),
+              req.get('weight_per_carton_kg')))
+        _recalculate_pl_totals(cursor, plid)
+        cursor.execute("SELECT * FROM packing_list_cartons WHERE id = ?", (cid,))
+        ct = dict(cursor.fetchone())
+        ct['cbm'] = _pl_cbm(ct['length_cm'], ct['width_cm'], ct['height_cm'], ct['carton_count'])
+        ct['items'] = []
+        cursor.execute("SELECT total_cartons, total_cbm, gross_weight_kg FROM packing_lists WHERE id = ?", (plid,))
+        totals = dict(cursor.fetchone())
+        return jsonify({"carton": ct, "pl_totals": totals}), 201
+
+
+@app.route("/api/packing-list/<plid>/cartons/<cid>", methods=["PUT"])
+@require_permission("forwarder_edit")
+def update_carton(plid, cid):
+    req = request.get_json(silent=True) or {}
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM packing_list_cartons WHERE id = ? AND packing_list_id = ?", (cid, plid))
+        if not cursor.fetchone():
+            return jsonify({"error": "Not found"}), 404
+        cursor.execute("""
+            UPDATE packing_list_cartons SET
+                carton_label         = ?,
+                carton_count         = ?,
+                length_cm            = ?,
+                width_cm             = ?,
+                height_cm            = ?,
+                weight_per_carton_kg = ?
+            WHERE id = ?
+        """, (req.get('carton_label'),
+              int(req.get('carton_count') or 1),
+              req.get('length_cm'), req.get('width_cm'), req.get('height_cm'),
+              req.get('weight_per_carton_kg'), cid))
+        _recalculate_pl_totals(cursor, plid)
+        cursor.execute("SELECT * FROM packing_list_cartons WHERE id = ?", (cid,))
+        ct = dict(cursor.fetchone())
+        ct['cbm'] = _pl_cbm(ct['length_cm'], ct['width_cm'], ct['height_cm'], ct['carton_count'])
+        cursor.execute("""
+            SELECT plci.id, plci.po_item_id, plci.quantity, plci.qty_per_carton,
+                   poi.item_name, poi.unit
+            FROM packing_list_carton_items plci
+            JOIN po_items poi ON poi.id = plci.po_item_id
+            WHERE plci.carton_id = ?
+        """, (cid,))
+        ct['items'] = [dict(r) for r in cursor.fetchall()]
+        cursor.execute("SELECT total_cartons, total_cbm, gross_weight_kg FROM packing_lists WHERE id = ?", (plid,))
+        totals = dict(cursor.fetchone())
+        return jsonify({"carton": ct, "pl_totals": totals})
+
+
+@app.route("/api/packing-list/<plid>/cartons/<cid>", methods=["DELETE"])
+@require_permission("forwarder_edit")
+def delete_carton(plid, cid):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM packing_list_cartons WHERE id = ? AND packing_list_id = ?", (cid, plid))
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Not found"}), 404
+        _recalculate_pl_totals(cursor, plid)
+        cursor.execute("SELECT total_cartons, total_cbm, gross_weight_kg FROM packing_lists WHERE id = ?", (plid,))
+        totals = dict(cursor.fetchone())
+        return jsonify({"success": True, "pl_totals": totals})
+
+
+@app.route("/api/packing-list/<plid>/cartons/<cid>/items", methods=["POST"])
+@require_permission("forwarder_edit")
+def add_carton_item(plid, cid):
+    req = request.get_json(silent=True) or {}
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM packing_list_cartons WHERE id = ? AND packing_list_id = ?", (cid, plid))
+        if not cursor.fetchone():
+            return jsonify({"error": "Not found"}), 404
+        if not req.get('po_item_id'):
+            return jsonify({"error": "po_item_id required"}), 400
+        iid = str(uuid.uuid4())
+        cursor.execute("""
+            INSERT INTO packing_list_carton_items (id, carton_id, po_item_id, quantity, qty_per_carton)
+            VALUES (?, ?, ?, ?, ?)
+        """, (iid, cid, req['po_item_id'], req.get('quantity'), req.get('qty_per_carton')))
+        cursor.execute("""
+            SELECT plci.id, plci.po_item_id, plci.quantity, plci.qty_per_carton,
+                   poi.item_name, poi.unit, poi.qty AS po_qty
+            FROM packing_list_carton_items plci
+            JOIN po_items poi ON poi.id = plci.po_item_id
+            WHERE plci.id = ?
+        """, (iid,))
+        return jsonify(dict(cursor.fetchone())), 201
+
+
+@app.route("/api/packing-list/<plid>/cartons/<cid>/items/<iid>", methods=["PUT"])
+@require_permission("forwarder_edit")
+def update_carton_item(plid, cid, iid):
+    req = request.get_json(silent=True) or {}
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT plci.id FROM packing_list_carton_items plci
+            JOIN packing_list_cartons plc ON plc.id = plci.carton_id
+            WHERE plci.id = ? AND plci.carton_id = ? AND plc.packing_list_id = ?
+        """, (iid, cid, plid))
+        if not cursor.fetchone():
+            return jsonify({"error": "Not found"}), 404
+        cursor.execute("""
+            UPDATE packing_list_carton_items SET quantity = ?, qty_per_carton = ? WHERE id = ?
+        """, (req.get('quantity'), req.get('qty_per_carton'), iid))
+        cursor.execute("""
+            SELECT plci.id, plci.po_item_id, plci.quantity, plci.qty_per_carton,
+                   poi.item_name, poi.unit
+            FROM packing_list_carton_items plci
+            JOIN po_items poi ON poi.id = plci.po_item_id
+            WHERE plci.id = ?
+        """, (iid,))
+        return jsonify(dict(cursor.fetchone()))
+
+
+@app.route("/api/packing-list/<plid>/cartons/<cid>/items/<iid>", methods=["DELETE"])
+@require_permission("forwarder_edit")
+def delete_carton_item(plid, cid, iid):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM packing_list_carton_items
+            WHERE id = ? AND carton_id = ?
+        """, (iid, cid))
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Not found"}), 404
+        return jsonify({"success": True})
+
+
+@app.route("/api/shipments/<sid>/packing-list/po-items", methods=["GET"])
+@require_permission("forwarder_dashboard")
+def get_pl_po_items(sid):
+    """Return all PO items linked to this shipment — used to populate carton-item selectors."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT poi.id, poi.item_name, poi.qty, poi.unit, poi.po_id,
+                   po.po_number
+            FROM shipment_po_link spl
+            JOIN po_items poi ON poi.po_id = spl.po_id
+            JOIN purchase_orders po ON po.id = spl.po_id
+            WHERE spl.shipment_id = ? AND po.deleted_at IS NULL
+            ORDER BY po.po_number, poi.line_sequence
+        """, (sid,))
+        return jsonify([dict(r) for r in cursor.fetchall()])
+
+
+@app.route("/packing-list/<plid>/print")
+@require_permission("forwarder_dashboard")
+def packing_list_print(plid):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM packing_lists WHERE id = ?", (plid,))
+        pl_row = cursor.fetchone()
+        if not pl_row:
+            return "Packing list not found", 404
+        pl = _build_pl_response(cursor, pl_row)
+        shipment, pos, supplier_name, company_name, company_address = _pl_shipment_info(cursor, pl['shipment_id'])
+    return render_template("packing_list_print.html",
+                           pl=pl, shipment=shipment, pos=pos,
+                           supplier_name=supplier_name,
+                           company_name=company_name, company_address=company_address,
+                           now=datetime.utcnow().strftime('%Y-%m-%d'))
+
+
+@app.route("/packing-list/<plid>/pdf")
+@require_permission("forwarder_dashboard")
+def packing_list_pdf(plid):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM packing_lists WHERE id = ?", (plid,))
+        pl_row = cursor.fetchone()
+        if not pl_row:
+            return "Packing list not found", 404
+        pl = _build_pl_response(cursor, pl_row)
+        shipment, pos, supplier_name, company_name, company_address = _pl_shipment_info(cursor, pl['shipment_id'])
+
+    if not WEASYPRINT_AVAILABLE:
+        return redirect(url_for('packing_list_print', plid=plid))
+
+    html_str = render_template("packing_list_print.html",
+                               pl=pl, shipment=shipment, pos=pos,
+                               supplier_name=supplier_name,
+                               company_name=company_name, company_address=company_address,
+                               now=datetime.utcnow().strftime('%Y-%m-%d'))
+    po_number = pos[0]['po_number'] if pos else 'NA'
+    booking_ref = shipment.get('booking_ref') or shipment.get('id', 'SHP')[:8]
+    filename = f"PL-{po_number}-{booking_ref}.pdf"
+    pdf_bytes = HTML(string=html_str, base_url=None).write_pdf()
+    return send_file(BytesIO(pdf_bytes), mimetype="application/pdf",
+                     as_attachment=True, download_name=filename)
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=8090, host="0.0.0.0")

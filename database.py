@@ -627,6 +627,49 @@ def init_db():
         _safe_add_column(cursor, "shipment_po_link", "part_no",     "INTEGER DEFAULT 1")
         _safe_add_column(cursor, "shipment_po_link", "items_json",  "TEXT DEFAULT '[]'")
 
+        # ── PACKING LISTS ────────────────────────────────────────────────────────
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS packing_lists (
+                id                   TEXT PRIMARY KEY,
+                shipment_id          TEXT NOT NULL UNIQUE,
+                supplier_pl_number   TEXT,
+                pl_date              TEXT,
+                total_cartons        INTEGER DEFAULT 0,
+                gross_weight_kg      REAL DEFAULT 0,
+                net_weight_kg        REAL DEFAULT 0,
+                total_cbm            REAL DEFAULT 0,
+                attachment_path      TEXT DEFAULT NULL,
+                warehouse_inward_ref TEXT DEFAULT NULL,
+                created_at           TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at           TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (shipment_id) REFERENCES shipments(id) ON DELETE CASCADE
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS packing_list_cartons (
+                id                   TEXT PRIMARY KEY,
+                packing_list_id      TEXT NOT NULL,
+                carton_label         TEXT,
+                carton_count         INTEGER DEFAULT 1,
+                length_cm            REAL,
+                width_cm             REAL,
+                height_cm            REAL,
+                weight_per_carton_kg REAL,
+                FOREIGN KEY (packing_list_id) REFERENCES packing_lists(id) ON DELETE CASCADE
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS packing_list_carton_items (
+                id             TEXT PRIMARY KEY,
+                carton_id      TEXT NOT NULL,
+                po_item_id     TEXT NOT NULL,
+                quantity       REAL,
+                qty_per_carton REAL DEFAULT NULL,
+                FOREIGN KEY (carton_id) REFERENCES packing_list_cartons(id) ON DELETE CASCADE,
+                FOREIGN KEY (po_item_id) REFERENCES po_items(id) ON DELETE CASCADE
+            )
+        """)
+
         # ── SHIPMENTS updated_at TRIGGER ─────────────────────────────────────────
         cursor.execute("""
             CREATE TRIGGER IF NOT EXISTS trg_shipment_updated_at
@@ -662,6 +705,9 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_shipments_deleted_at ON shipments(deleted_at)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_spl_shipment_id ON shipment_po_link(shipment_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_spl_po_id ON shipment_po_link(po_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pl_shipment_id ON packing_lists(shipment_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_plc_pl_id ON packing_list_cartons(packing_list_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_plci_carton_id ON packing_list_carton_items(carton_id)")
 
         # Supplier Books indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sle_supplier_id ON supplier_ledger_entries(supplier_id)")

@@ -610,6 +610,11 @@ select option{background:#111520;color:#fff;padding:8px}
     <div class="sec-label">Linked Purchase Orders</div>
     <div id="linked-pos-list"></div>
 
+    <div class="sec-label">Packing List</div>
+    <div id="pl-drawer-section">
+      <div style="font-size:11px;color:var(--text3)">Loading…</div>
+    </div>
+
     <div class="sec-label">Activity &amp; Notes</div>
     <div id="notes-log"></div>
     <div class="form-group" style="margin-top:12px">
@@ -623,6 +628,156 @@ select option{background:#111520;color:#fff;padding:8px}
     <button class="btn btn-green btn-sm" id="btn-delivered" onclick="markAsDelivered()">✓ Mark Delivered</button>
     <div style="flex:1"></div>
     <button class="btn btn-red btn-sm" onclick="deleteCurrentShipment()">🗑</button>
+  </div>
+</div>
+
+<!-- ── Packing List Management Modal ─────────────────────────────────────── -->
+<div class="modal-overlay" id="plModal" style="display:none;align-items:flex-start;padding-top:40px;overflow-y:auto">
+  <div class="modal" style="width:820px;max-width:96vw;max-height:90vh;overflow-y:auto;padding:28px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div>
+        <div class="modal-title" id="plModalTitle">Packing List</div>
+        <div style="font-size:11px;color:var(--text2)" id="plModalSub"></div>
+      </div>
+      <button class="modal-close" onclick="closePLModal()">✕</button>
+    </div>
+
+    <!-- Header fields -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px">
+      <div class="form-group">
+        <label>Supplier PL Number</label>
+        <input id="plm_pl_number" placeholder="e.g. PL-2024-001">
+      </div>
+      <div class="form-group">
+        <label>PL Date</label>
+        <input type="date" id="plm_pl_date">
+      </div>
+      <div class="form-group">
+        <label>Net Weight (kg)</label>
+        <input type="number" id="plm_net_weight" placeholder="0.000" step="0.001" min="0">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:20px;align-items:center">
+      <button class="req-edit btn btn-primary btn-sm" onclick="savePLHeader()">Save Header</button>
+      <div id="plm_header_status" style="font-size:11px;color:var(--accent)"></div>
+    </div>
+
+    <!-- Totals bar -->
+    <div id="plm_totals_bar" style="display:none;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:10px 16px;margin-bottom:16px;display:flex;gap:24px;font-size:12px">
+      <span>📦 Cartons: <strong id="plm_t_cartons" style="color:#fff">0</strong></span>
+      <span>⚖ Gross: <strong id="plm_t_gw" style="color:#fff">0</strong> kg</span>
+      <span>⚓ Net: <strong id="plm_t_nw" style="color:#fff">0</strong> kg</span>
+      <span>📐 CBM: <strong id="plm_t_cbm" style="color:#fff">0</strong></span>
+    </div>
+
+    <!-- Reconciliation warnings -->
+    <div id="plm_recon_warnings" style="margin-bottom:14px"></div>
+
+    <!-- Cartons table -->
+    <div id="plm_cartons_section" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:800;color:var(--text2);letter-spacing:.08em;text-transform:uppercase">Carton Rows</div>
+        <button class="req-edit btn btn-green btn-sm" onclick="openAddCartonRow()">+ Add Carton Row</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead>
+            <tr style="color:var(--text3)">
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);font-weight:700">Label</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700">#</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700">L cm</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700">W cm</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700">H cm</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700">kg/ctn</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700">CBM</th>
+              <th style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);font-weight:700">Items</th>
+              <th style="padding:6px 8px;border-bottom:1px solid var(--border)"></th>
+            </tr>
+          </thead>
+          <tbody id="plm_cartons_tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Print / PDF buttons (shown once PL exists) -->
+    <div id="plm_actions" style="display:none;margin-top:20px;display:flex;gap:10px;padding-top:16px;border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm" onclick="openPLPrint()">🖨 Print View</button>
+      <button class="btn btn-ghost btn-sm" onclick="downloadPLPDF()">⬇ Download PDF</button>
+      <div style="flex:1"></div>
+      <button class="req-edit btn btn-red btn-sm" onclick="deletePL()">Delete Packing List</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Carton Row inline form (hidden by default) -->
+<div class="modal-overlay" id="plCartonModal" style="display:none;align-items:center">
+  <div class="modal" style="width:560px;max-width:96vw;padding:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div class="modal-title" id="plCartonModalTitle">Add Carton Row</div>
+      <button class="modal-close" onclick="closePlCartonModal()">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Carton Label <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">(e.g. "1-15" or "A")</span></label>
+        <input id="plc_label" placeholder="1-15">
+      </div>
+      <div class="form-group">
+        <label>Carton Count</label>
+        <input type="number" id="plc_count" value="1" min="1">
+      </div>
+      <div class="form-group">
+        <label>Weight per Carton (kg)</label>
+        <input type="number" id="plc_weight" placeholder="0.000" step="0.001" min="0">
+      </div>
+      <div class="form-group">
+        <label>Length (cm)</label>
+        <input type="number" id="plc_l" placeholder="0" step="0.1" min="0">
+      </div>
+      <div class="form-group">
+        <label>Width (cm)</label>
+        <input type="number" id="plc_w" placeholder="0" step="0.1" min="0">
+      </div>
+      <div class="form-group">
+        <label>Height (cm)</label>
+        <input type="number" id="plc_h" placeholder="0" step="0.1" min="0">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>CBM Preview</label>
+        <div id="plc_cbm_preview" style="font-size:13px;font-weight:700;color:var(--accent);padding:8px 0">—</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn btn-primary" id="plc_save_btn" onclick="saveCartonRow()">Save Row</button>
+      <button class="btn btn-ghost" onclick="closePlCartonModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Carton Item modal -->
+<div class="modal-overlay" id="plItemModal" style="display:none;align-items:center">
+  <div class="modal" style="width:440px;max-width:96vw;padding:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div class="modal-title">Add Item to Carton</div>
+      <button class="modal-close" onclick="closePLItemModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label>PO Item</label>
+      <select id="pli_item_sel" onchange="pliItemSelected()">
+        <option value="">— select —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Total Qty (all cartons in this row)</label>
+      <input type="number" id="pli_qty" placeholder="0" step="0.01" min="0">
+    </div>
+    <div class="form-group">
+      <label>Qty per Carton <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">(optional)</span></label>
+      <input type="number" id="pli_qpc" placeholder="auto" step="0.01" min="0">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn btn-primary" onclick="saveCartonItem()">Add Item</button>
+      <button class="btn btn-ghost" onclick="closePLItemModal()">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -807,6 +962,7 @@ function renderTable() {
             ${esc(s.description)||'<span style="color:var(--text3)">—</span>'}
           </div>
           <div style="font-size:10px;color:var(--text2);margin-top:2px">${s.booking_ref?'Ref: '+esc(s.booking_ref):'<span style="color:var(--text3)">No booking ref yet</span>'}</div>
+          ${s.pl_id?`<div style="font-size:9px;color:var(--cyan);margin-top:2px">📦 ${s.pl_total_cartons||0} ctns · ${(+(s.pl_total_cbm||0)).toFixed(2)} CBM · ${(+(s.pl_gross_weight_kg||0)).toFixed(1)} kg</div>`:''}
         </td>
         <td style="font-weight:600">${esc(s.forwarder_name)}</td>
         <td><div class="po-chips">${chips||'<span style="color:var(--text3);font-size:10px">—</span>'}</div></td>
@@ -1421,6 +1577,8 @@ function openDrawer(id) {
     noteEl.innerHTML = `<div style="font-size:11px;color:var(--text3)">No notes yet</div>`;
   }
 
+  renderPLDrawerSection(s);
+
   document.getElementById('btn-delivered').style.display = s.status==='Delivered'?'none':'inline-flex';
   document.getElementById('shipmentDrawer').classList.add('open');
   document.getElementById('drawerBackdrop').classList.add('show');
@@ -1740,6 +1898,318 @@ function renderGantt() {
       }
     }
   });
+}
+
+// ─── Packing List ─────────────────────────────────────────────────────────────
+let currentPL = null;
+let currentPLShipmentId = null;
+let plPoItems = [];
+let editingCartonId = null;
+let editingCartonItemCartonId = null;
+
+function renderPLDrawerSection(s) {
+  const el = document.getElementById('pl-drawer-section');
+  if (!el) return;
+  if (s.pl_id) {
+    el.innerHTML = `
+      <div style="background:rgba(0,0,0,.15);border:1px solid var(--border1);border-radius:8px;padding:10px 12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+          <span style="font-size:12px;font-weight:700;color:#fff">${esc(s.pl_number||'Packing List')}</span>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            <button class="req-edit btn btn-ghost btn-xs" onclick="openPLModal('${s.id}')">✏ Manage</button>
+            <a class="btn btn-ghost btn-xs" href="/packing-list/${s.pl_id}/print" target="_blank">🖨 Print</a>
+            <a class="btn btn-ghost btn-xs" href="/packing-list/${s.pl_id}/pdf">⬇ PDF</a>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;font-size:11px;color:var(--text2)">
+          <span>📦 <strong style="color:#fff">${s.pl_total_cartons||0}</strong> ctns</span>
+          <span>⚖ <strong style="color:#fff">${s.pl_gross_weight_kg!=null?(+s.pl_gross_weight_kg).toFixed(3):0}</strong> kg gross</span>
+          <span>📐 <strong style="color:#fff">${s.pl_total_cbm!=null?(+s.pl_total_cbm).toFixed(4):0}</strong> CBM</span>
+        </div>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:11px;color:var(--text3)">No packing list yet.</span>
+        <button class="req-edit btn btn-ghost btn-xs" onclick="openPLModal('${s.id}')">+ Create</button>
+      </div>`;
+  }
+}
+
+async function openPLModal(sid) {
+  currentPLShipmentId = sid;
+  const s = shipments.find(x => x.id === sid);
+  document.getElementById('plModalTitle').textContent = 'Packing List';
+  document.getElementById('plModalSub').textContent = s ? esc(s.description || sid) : sid;
+
+  document.getElementById('plm_pl_number').value = '';
+  document.getElementById('plm_pl_date').value = '';
+  document.getElementById('plm_net_weight').value = '';
+  document.getElementById('plm_header_status').textContent = '';
+  document.getElementById('plm_cartons_section').style.display = 'none';
+  document.getElementById('plm_actions').style.display = 'none';
+  document.getElementById('plm_totals_bar').style.display = 'none';
+  document.getElementById('plm_recon_warnings').innerHTML = '';
+  document.getElementById('plm_cartons_tbody').innerHTML = '';
+  document.getElementById('plModal').style.display = 'flex';
+
+  try {
+    const r = await fetch(`/api/shipments/${sid}/packing-list/po-items`);
+    plPoItems = r.ok ? await r.json() : [];
+  } catch(e) { plPoItems = []; }
+
+  try {
+    const r = await fetch(`/api/shipments/${sid}/packing-list`);
+    if (r.ok) { currentPL = await r.json(); populatePLModal(currentPL); }
+    else currentPL = null;
+  } catch(e) { currentPL = null; }
+}
+
+function closePLModal() {
+  document.getElementById('plModal').style.display = 'none';
+  currentPL = null; currentPLShipmentId = null;
+}
+
+function populatePLModal(pl) {
+  document.getElementById('plm_pl_number').value = pl.supplier_pl_number || '';
+  document.getElementById('plm_pl_date').value   = pl.pl_date || '';
+  document.getElementById('plm_net_weight').value = pl.net_weight_kg || '';
+  renderPLTotals(pl);
+  document.getElementById('plm_cartons_section').style.display = 'block';
+  document.getElementById('plm_actions').style.display = 'flex';
+  renderPLCartons(pl.cartons || []);
+  renderReconWarnings(pl);
+}
+
+function renderPLTotals(pl) {
+  document.getElementById('plm_totals_bar').style.display = 'flex';
+  document.getElementById('plm_t_cartons').textContent = pl.total_cartons || 0;
+  document.getElementById('plm_t_gw').textContent = (+( pl.gross_weight_kg||0)).toFixed(3);
+  document.getElementById('plm_t_nw').textContent = (+(pl.net_weight_kg||0)).toFixed(3);
+  document.getElementById('plm_t_cbm').textContent  = (+(pl.total_cbm||0)).toFixed(4);
+}
+
+function renderPLCartons(cartons) {
+  const tbody = document.getElementById('plm_cartons_tbody');
+  if (!cartons.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="padding:14px;color:var(--text3);font-size:11px;text-align:center">No carton rows yet — click + Add Carton Row.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = cartons.map(c => {
+    const itemsLabel = c.items && c.items.length
+      ? c.items.map(it => `${esc(it.item_name)} ×${it.quantity}`).join(', ')
+      : '<span style="color:var(--text3)">—</span>';
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:7px 8px;font-weight:700">${esc(c.carton_label||'')}</td>
+      <td style="padding:7px 8px;text-align:right">${c.carton_count||1}</td>
+      <td style="padding:7px 8px;text-align:right">${c.length_cm!=null?c.length_cm:'—'}</td>
+      <td style="padding:7px 8px;text-align:right">${c.width_cm!=null?c.width_cm:'—'}</td>
+      <td style="padding:7px 8px;text-align:right">${c.height_cm!=null?c.height_cm:'—'}</td>
+      <td style="padding:7px 8px;text-align:right">${c.weight_per_carton_kg!=null?c.weight_per_carton_kg:'—'}</td>
+      <td style="padding:7px 8px;text-align:right;color:var(--cyan);font-weight:700">${(c.cbm||0).toFixed?((c.cbm||0)).toFixed(4):c.cbm||0}</td>
+      <td style="padding:7px 8px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px">${itemsLabel}</td>
+      <td style="padding:7px 8px;white-space:nowrap">
+        <button class="req-edit btn btn-ghost btn-xs" onclick="openEditCartonRow('${c.id}')">✏</button>
+        <button class="req-edit btn btn-ghost btn-xs" onclick="openAddItemToCarton('${c.id}')">+Item</button>
+        <button class="req-edit btn btn-red btn-xs" onclick="deleteCartonRow('${c.id}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderReconWarnings(pl) {
+  const el = document.getElementById('plm_recon_warnings');
+  if (!plPoItems.length || !pl.cartons) { el.innerHTML = ''; return; }
+  const qtyByItem = {};
+  for (const c of pl.cartons) {
+    for (const it of (c.items || [])) {
+      qtyByItem[it.po_item_id] = (qtyByItem[it.po_item_id] || 0) + (it.quantity || 0);
+    }
+  }
+  const s = shipments.find(x => x.id === currentPLShipmentId);
+  const shippedByItem = {};
+  if (s) {
+    for (const lp of (s.linked_pos || [])) {
+      for (const si of (lp.shipped_items || [])) {
+        const found = plPoItems.find(pi => pi.item_name === si.item_name);
+        if (found) shippedByItem[found.id] = (shippedByItem[found.id] || 0) + (si.qty || 0);
+      }
+    }
+  }
+  const warnings = [];
+  for (const pi of plPoItems) {
+    const shipped = shippedByItem[pi.id] || 0;
+    const packed  = qtyByItem[pi.id]    || 0;
+    if (Math.abs(shipped - packed) > 0.001) {
+      const diff = shipped - packed;
+      warnings.push(`<span style="background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);border-radius:4px;padding:3px 8px;font-size:10px;font-weight:700;color:#f59e0b;margin:2px 4px 2px 0;display:inline-block">⚠ ${esc(pi.item_name)}: shipped ${shipped}, packed ${packed} (${diff>0?'+':''}${diff.toFixed(2)})</span>`);
+    }
+  }
+  el.innerHTML = warnings.length ? `<div style="margin-bottom:8px">${warnings.join('')}</div>` : '';
+}
+
+async function savePLHeader() {
+  const sid = currentPLShipmentId;
+  const body = {
+    supplier_pl_number: document.getElementById('plm_pl_number').value.trim() || null,
+    pl_date:            document.getElementById('plm_pl_date').value || null,
+    net_weight_kg:      parseFloat(document.getElementById('plm_net_weight').value) || 0,
+  };
+  const url    = currentPL ? `/api/packing-list/${currentPL.id}` : `/api/shipments/${sid}/packing-list`;
+  const method = currentPL ? 'PUT' : 'POST';
+  const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (!r.ok) { toast('Failed to save', 'error'); return; }
+  currentPL = await r.json();
+  populatePLModal(currentPL);
+  document.getElementById('plm_header_status').textContent = '✓ Saved';
+  setTimeout(() => { document.getElementById('plm_header_status').textContent = ''; }, 2000);
+  await refresh();
+  const s2 = shipments.find(x => x.id === sid);
+  if (s2) renderPLDrawerSection(s2);
+}
+
+async function deletePL() {
+  if (!currentPL) return;
+  if (!confirm('Delete this packing list and all carton data?')) return;
+  const r = await fetch(`/api/packing-list/${currentPL.id}`, { method:'DELETE' });
+  if (!r.ok) { toast('Delete failed', 'error'); return; }
+  currentPL = null; closePLModal();
+  await refresh();
+}
+
+function openPLPrint()    { if (currentPL) window.open(`/packing-list/${currentPL.id}/print`, '_blank'); }
+function downloadPLPDF()  { if (currentPL) window.location.href = `/packing-list/${currentPL.id}/pdf`; }
+
+function openAddCartonRow() {
+  editingCartonId = null;
+  document.getElementById('plCartonModalTitle').textContent = 'Add Carton Row';
+  ['plc_label','plc_weight','plc_l','plc_w','plc_h'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('plc_count').value = '1';
+  document.getElementById('plc_cbm_preview').textContent = '—';
+  document.getElementById('plc_save_btn').textContent = 'Add Row';
+  document.getElementById('plCartonModal').style.display = 'flex';
+}
+
+function openEditCartonRow(cid) {
+  if (!currentPL) return;
+  const c = currentPL.cartons.find(x => x.id === cid);
+  if (!c) return;
+  editingCartonId = cid;
+  document.getElementById('plCartonModalTitle').textContent = 'Edit Carton Row';
+  document.getElementById('plc_label').value  = c.carton_label || '';
+  document.getElementById('plc_count').value  = c.carton_count || 1;
+  document.getElementById('plc_weight').value = c.weight_per_carton_kg != null ? c.weight_per_carton_kg : '';
+  document.getElementById('plc_l').value = c.length_cm != null ? c.length_cm : '';
+  document.getElementById('plc_w').value = c.width_cm  != null ? c.width_cm  : '';
+  document.getElementById('plc_h').value = c.height_cm != null ? c.height_cm : '';
+  document.getElementById('plc_save_btn').textContent = 'Save Changes';
+  updateCbmPreview();
+  document.getElementById('plCartonModal').style.display = 'flex';
+}
+
+function closePlCartonModal() {
+  document.getElementById('plCartonModal').style.display = 'none'; editingCartonId = null;
+}
+
+function updateCbmPreview() {
+  const l = parseFloat(document.getElementById('plc_l').value) || 0;
+  const w = parseFloat(document.getElementById('plc_w').value) || 0;
+  const h = parseFloat(document.getElementById('plc_h').value) || 0;
+  const n = parseInt(document.getElementById('plc_count').value) || 1;
+  const el = document.getElementById('plc_cbm_preview');
+  if (l && w && h) {
+    const each = (l * w * h) / 1_000_000;
+    el.textContent = `${(each * n).toFixed(4)} CBM total  (${n} × ${each.toFixed(4)} each)`;
+  } else { el.textContent = '—'; }
+}
+
+['plc_l','plc_w','plc_h','plc_count'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updateCbmPreview);
+});
+
+async function saveCartonRow() {
+  if (!currentPL) return;
+  const body = {
+    carton_label:         document.getElementById('plc_label').value.trim() || null,
+    carton_count:         parseInt(document.getElementById('plc_count').value) || 1,
+    length_cm:            parseFloat(document.getElementById('plc_l').value)      || null,
+    width_cm:             parseFloat(document.getElementById('plc_w').value)      || null,
+    height_cm:            parseFloat(document.getElementById('plc_h').value)      || null,
+    weight_per_carton_kg: parseFloat(document.getElementById('plc_weight').value) || null,
+  };
+  const url = editingCartonId
+    ? `/api/packing-list/${currentPL.id}/cartons/${editingCartonId}`
+    : `/api/packing-list/${currentPL.id}/cartons`;
+  const r = await fetch(url, { method: editingCartonId ? 'PUT' : 'POST',
+    headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (!r.ok) { toast('Failed to save carton row', 'error'); return; }
+  const data = await r.json();
+  if (editingCartonId) {
+    const idx = currentPL.cartons.findIndex(x => x.id === editingCartonId);
+    if (idx !== -1) currentPL.cartons[idx] = data.carton;
+  } else {
+    currentPL.cartons.push(data.carton);
+  }
+  currentPL.total_cartons   = data.pl_totals.total_cartons;
+  currentPL.total_cbm       = data.pl_totals.total_cbm;
+  currentPL.gross_weight_kg = data.pl_totals.gross_weight_kg;
+  closePlCartonModal();
+  renderPLCartons(currentPL.cartons);
+  renderPLTotals(currentPL);
+  renderReconWarnings(currentPL);
+  await refresh();
+}
+
+async function deleteCartonRow(cid) {
+  if (!currentPL || !confirm('Delete this carton row?')) return;
+  const r = await fetch(`/api/packing-list/${currentPL.id}/cartons/${cid}`, { method:'DELETE' });
+  if (!r.ok) { toast('Delete failed', 'error'); return; }
+  const data = await r.json();
+  currentPL.cartons = currentPL.cartons.filter(x => x.id !== cid);
+  currentPL.total_cartons   = data.pl_totals.total_cartons;
+  currentPL.total_cbm       = data.pl_totals.total_cbm;
+  currentPL.gross_weight_kg = data.pl_totals.gross_weight_kg;
+  renderPLCartons(currentPL.cartons);
+  renderPLTotals(currentPL);
+  renderReconWarnings(currentPL);
+  await refresh();
+}
+
+function openAddItemToCarton(cid) {
+  editingCartonItemCartonId = cid;
+  const sel = document.getElementById('pli_item_sel');
+  sel.innerHTML = '<option value="">— select —</option>' +
+    plPoItems.map(pi => `<option value="${pi.id}">${esc(pi.po_number+' · '+pi.item_name)} (${pi.qty} ${pi.unit||''})</option>`).join('');
+  document.getElementById('pli_qty').value = '';
+  document.getElementById('pli_qpc').value = '';
+  document.getElementById('plItemModal').style.display = 'flex';
+}
+
+function closePLItemModal() {
+  document.getElementById('plItemModal').style.display = 'none';
+  editingCartonItemCartonId = null;
+}
+
+async function saveCartonItem() {
+  if (!currentPL || !editingCartonItemCartonId) return;
+  const po_item_id = document.getElementById('pli_item_sel').value;
+  if (!po_item_id) { toast('Select an item', 'error'); return; }
+  const body = {
+    po_item_id,
+    quantity:       parseFloat(document.getElementById('pli_qty').value) || 0,
+    qty_per_carton: parseFloat(document.getElementById('pli_qpc').value) || null,
+  };
+  const r = await fetch(
+    `/api/packing-list/${currentPL.id}/cartons/${editingCartonItemCartonId}/items`,
+    { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (!r.ok) { toast('Failed to add item', 'error'); return; }
+  const item = await r.json();
+  const c = currentPL.cartons.find(x => x.id === editingCartonItemCartonId);
+  if (c) c.items.push(item);
+  closePLItemModal();
+  renderPLCartons(currentPL.cartons);
+  renderReconWarnings(currentPL);
 }
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
