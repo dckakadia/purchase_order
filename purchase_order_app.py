@@ -8533,19 +8533,36 @@ def delete_carton_item(plid, cid, iid):
 @app.route("/api/shipments/<sid>/packing-list/po-items", methods=["GET"])
 @require_permission("forwarder_dashboard")
 def get_pl_po_items(sid):
-    """Return all PO items linked to this shipment — used to populate carton-item selectors."""
+    """Return only the items actually shipped in this part-load (per shipment_po_link.items_json),
+    used to populate carton-item selectors. Falls back to all PO items for legacy links with no
+    per-item selection stored."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT poi.id, poi.item_name, poi.qty, poi.unit, poi.po_id,
-                   po.po_number
+            SELECT spl.items_json, po.id AS po_id, po.po_number
             FROM shipment_po_link spl
-            JOIN po_items poi ON poi.po_id = spl.po_id
             JOIN purchase_orders po ON po.id = spl.po_id
             WHERE spl.shipment_id = ? AND po.deleted_at IS NULL
-            ORDER BY po.po_number, poi.line_sequence
         """, (sid,))
-        return jsonify([dict(r) for r in cursor.fetchall()])
+        links = cursor.fetchall()
+
+        result = []
+        for link in links:
+            po_id = link['po_id']
+            shipped_items = json.loads(link['items_json'] or '[]')
+            shipped_names = {it.get('item_name') for it in shipped_items} if shipped_items else None
+
+            cursor.execute("""
+                SELECT id, item_name, qty, unit, po_id
+                FROM po_items WHERE po_id = ? ORDER BY line_sequence
+            """, (po_id,))
+            for r in cursor.fetchall():
+                poi = dict(r)
+                if shipped_names is not None and poi['item_name'] not in shipped_names:
+                    continue
+                poi['po_number'] = link['po_number']
+                result.append(poi)
+        return jsonify(result)
 
 
 @app.route("/packing-list/<plid>/print")
