@@ -702,7 +702,7 @@ tr.pl-items-row td{border-bottom:1px solid var(--border)}
           <thead>
             <tr style="color:var(--text3)">
               <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;min-width:90px">Label</th>
-              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;width:56px">#</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;width:56px" title="Number of identical cartons in this row">Ctns</th>
               <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;width:64px">L cm</th>
               <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;width:64px">W cm</th>
               <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;width:64px">H cm</th>
@@ -1957,6 +1957,33 @@ function syncShipmentPLFromCurrent() {
   renderPLDrawerSection(s);
 }
 
+// Total qty of each PO item actually shipped in this part-load (from shipment_po_link.shipped_items).
+function getShippedByItemMap() {
+  const shippedByItem = {};
+  const s = shipments.find(x => x.id === currentPLShipmentId);
+  if (!s) return shippedByItem;
+  for (const lp of (s.linked_pos || [])) {
+    for (const si of (lp.shipped_items || [])) {
+      const found = plPoItems.find(pi => pi.item_name === si.item_name);
+      if (found) shippedByItem[found.id] = (shippedByItem[found.id] || 0) + (si.qty || 0);
+    }
+  }
+  return shippedByItem;
+}
+
+// Total qty of each PO item already packed across all carton rows.
+function getPackedByItemMap(pl) {
+  const qtyByItem = {};
+  for (const c of (pl.cartons || [])) {
+    for (const it of (c.items || [])) {
+      qtyByItem[it.po_item_id] = (qtyByItem[it.po_item_id] || 0) + (it.quantity || 0);
+    }
+  }
+  return qtyByItem;
+}
+
+function round2(n) { return Math.round(n * 100) / 100; }
+
 function cartonItemsHtml(c) {
   const items = c.items || [];
   const chips = items.map(it => `
@@ -1965,16 +1992,24 @@ function cartonItemsHtml(c) {
       <input type="number" class="pl-item-chip-qty" value="${it.quantity!=null?it.quantity:''}" step="0.01" min="0"
         ${CAN_EDIT_FORWARDER?'':'disabled'}
         onblur="updateCartonItemQty('${c.id}','${it.id}', this.value)"
-        onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
+        onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+        onfocus="this.select()">
       <span class="pl-item-chip-unit">${esc(it.unit||'')}</span>
       ${CAN_EDIT_FORWARDER ? `<button type="button" class="pl-item-chip-x" title="Remove item" onclick="removeCartonItem('${c.id}','${it.id}')">✕</button>` : ''}
     </span>`).join('');
   const usedIds = new Set(items.map(it => it.po_item_id));
   const availableItems = plPoItems.filter(pi => !usedIds.has(pi.id));
+  const shippedByItem = getShippedByItemMap();
+  const packedByItem = getPackedByItemMap(currentPL);
   const addSelect = CAN_EDIT_FORWARDER && availableItems.length ? `
     <select class="pl-item-add-sel" onchange="addItemToCartonInline('${c.id}', this)">
       <option value="">+ add item…</option>
-      ${availableItems.map(pi => `<option value="${pi.id}">${esc(pi.po_number+' · '+pi.item_name)}</option>`).join('')}
+      ${availableItems.map(pi => {
+        const shipped = shippedByItem[pi.id];
+        const remaining = shipped != null ? round2(shipped - (packedByItem[pi.id] || 0)) : null;
+        const remLabel = remaining != null ? ` (${remaining} ${pi.unit||''} left)` : '';
+        return `<option value="${pi.id}">${esc(pi.po_number+' · '+pi.item_name)}${esc(remLabel)}</option>`;
+      }).join('')}
     </select>` : '';
   return `<div class="pl-items-wrap">${chips}${addSelect}${!chips && !addSelect ? '<span style="color:var(--text3)">—</span>' : ''}</div>`;
 }
@@ -1984,17 +2019,17 @@ function cartonRowHtml(c) {
   const dis = CAN_EDIT_FORWARDER ? '' : 'disabled';
   return `<tr class="pl-carton-row" data-cid="${c.id}">
       <td class="pl-cell"><input value="${esc(c.carton_label||'')}" placeholder="1-15" ${dis}
-        onblur="saveCartonField('${c.id}')" onkeydown="cartonFieldKeydown(event)"></td>
+        onblur="saveCartonField('${c.id}')" onkeydown="cartonFieldKeydown(event)" onfocus="this.select()"></td>
       <td class="pl-cell"><input type="number" class="pl-num" min="1" value="${c.carton_count||1}" ${dis}
-        onblur="saveCartonField('${c.id}')" oninput="liveCbm('${c.id}')" onkeydown="cartonFieldKeydown(event)"></td>
+        onblur="saveCartonField('${c.id}')" oninput="liveCbm('${c.id}')" onkeydown="cartonFieldKeydown(event)" onfocus="this.select()"></td>
       <td class="pl-cell"><input type="number" class="pl-num" step="0.1" min="0" value="${c.length_cm!=null?c.length_cm:''}" ${dis}
-        onblur="saveCartonField('${c.id}')" oninput="liveCbm('${c.id}')" onkeydown="cartonFieldKeydown(event)"></td>
+        onblur="saveCartonField('${c.id}')" oninput="liveCbm('${c.id}')" onkeydown="cartonFieldKeydown(event)" onfocus="this.select()"></td>
       <td class="pl-cell"><input type="number" class="pl-num" step="0.1" min="0" value="${c.width_cm!=null?c.width_cm:''}" ${dis}
-        onblur="saveCartonField('${c.id}')" oninput="liveCbm('${c.id}')" onkeydown="cartonFieldKeydown(event)"></td>
+        onblur="saveCartonField('${c.id}')" oninput="liveCbm('${c.id}')" onkeydown="cartonFieldKeydown(event)" onfocus="this.select()"></td>
       <td class="pl-cell"><input type="number" class="pl-num" step="0.1" min="0" value="${c.height_cm!=null?c.height_cm:''}" ${dis}
-        onblur="saveCartonField('${c.id}')" oninput="liveCbm('${c.id}')" onkeydown="cartonFieldKeydown(event)"></td>
+        onblur="saveCartonField('${c.id}')" oninput="liveCbm('${c.id}')" onkeydown="cartonFieldKeydown(event)" onfocus="this.select()"></td>
       <td class="pl-cell"><input type="number" class="pl-num" step="0.001" min="0" value="${c.weight_per_carton_kg!=null?c.weight_per_carton_kg:''}" ${dis}
-        onblur="saveCartonField('${c.id}')" onkeydown="cartonFieldKeydown(event)"></td>
+        onblur="saveCartonField('${c.id}')" onkeydown="cartonFieldKeydown(event)" onfocus="this.select()"></td>
       <td style="padding:7px 8px;text-align:right;color:var(--cyan);font-weight:700" id="pl_cbm_${c.id}">${cbm.toFixed(4)}</td>
       <td style="padding:7px 4px;text-align:center">
         <button class="req-edit btn btn-ghost btn-xs" title="Delete row" onclick="deleteCartonRow('${c.id}')">✕</button>
@@ -2032,22 +2067,8 @@ function focusCartonRowLabel(cid) {
 function renderReconWarnings(pl) {
   const el = document.getElementById('plm_recon_warnings');
   if (!plPoItems.length || !pl.cartons) { el.innerHTML = ''; return; }
-  const qtyByItem = {};
-  for (const c of pl.cartons) {
-    for (const it of (c.items || [])) {
-      qtyByItem[it.po_item_id] = (qtyByItem[it.po_item_id] || 0) + (it.quantity || 0);
-    }
-  }
-  const s = shipments.find(x => x.id === currentPLShipmentId);
-  const shippedByItem = {};
-  if (s) {
-    for (const lp of (s.linked_pos || [])) {
-      for (const si of (lp.shipped_items || [])) {
-        const found = plPoItems.find(pi => pi.item_name === si.item_name);
-        if (found) shippedByItem[found.id] = (shippedByItem[found.id] || 0) + (si.qty || 0);
-      }
-    }
-  }
+  const qtyByItem = getPackedByItemMap(pl);
+  const shippedByItem = getShippedByItemMap();
   const warnings = [];
   for (const pi of plPoItems) {
     const shipped = shippedByItem[pi.id] || 0;
@@ -2217,8 +2238,14 @@ async function addItemToCartonInline(cid, selectEl) {
   const po_item_id = selectEl.value;
   if (!po_item_id) return;
   selectEl.value = '';
+  // Prefill with whatever of this item is still unpacked, so the common case
+  // (an item fits entirely in one carton) needs no typing at all — the user
+  // can just tab past it, or overwrite it since focus+select is applied below.
+  const shipped = getShippedByItemMap()[po_item_id];
+  const packed = getPackedByItemMap(currentPL)[po_item_id] || 0;
+  const remaining = shipped != null ? Math.max(0, round2(shipped - packed)) : 0;
   const r = await fetch(`/api/packing-list/${currentPL.id}/cartons/${cid}/items`,
-    { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ po_item_id, quantity: 0 }) });
+    { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ po_item_id, quantity: remaining }) });
   if (!r.ok) { toast('Failed to add item', 'error'); return; }
   const item = await r.json();
   const c = currentPL.cartons.find(x => x.id === cid);
