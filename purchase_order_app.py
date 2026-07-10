@@ -276,14 +276,31 @@ def _log_status_change(cursor, po_id, from_status, to_status, note=None, force=F
         (str(_uuid.uuid4()), po_id, from_status, to_status, note)
     )
 
+# Shared shipment-lifecycle stage order (subset of the PO status vocabulary —
+# Draft / Part Load / Cancelled are PO-only and have no shipment equivalent).
+_SHIP_STAGES = ["Confirmed", "Shipped", "In Transit", "Arrived", "Delivered"]
+
+
 def _sync_shipment_from_po(cursor, po_id, po_status):
     """
-    Automatically updates linked shipment status when a PO status changes.
-    Rules:
-    - PO 'Shipped'/'Partially Shipped' -> Shipment 'Shipped' (if currently 'With Forwarder')
-    - PO 'In Transit' -> Shipment 'In Transit' (if currently Shipped/'With Forwarder')
-    - PO 'Received' -> Shipment 'Delivered' (if ALL POs received) or 'Arrived'
+    Push a PO status change onto its linked shipment(s) using the shared
+    status vocabulary (Draft, Confirmed, Part Load, Shipped, In Transit,
+    Arrived, Delivered, Cancelled). A shipment only ever advances along
+    _SHIP_STAGES — this never regresses a shipment that's further along.
     """
+    if po_status in ('Part Load', 'Shipped'):
+        target_stage = 'Shipped'
+    elif po_status == 'In Transit':
+        target_stage = 'In Transit'
+    elif po_status == 'Arrived':
+        target_stage = 'Arrived'
+    elif po_status == 'Confirmed':
+        target_stage = 'Confirmed'
+    elif po_status == 'Delivered':
+        target_stage = None  # resolved per-shipment below (depends on sibling POs)
+    else:
+        return  # Draft / Cancelled — no shipment implication
+
     try:
         # Find all active shipments linked to this PO
         cursor.execute("""
@@ -296,48 +313,40 @@ def _sync_shipment_from_po(cursor, po_id, po_status):
         for ship_row in ship_rows:
             sid = ship_row['id']
             current_ship_status = ship_row['status']
+            current_idx = _SHIP_STAGES.index(current_ship_status) if current_ship_status in _SHIP_STAGES else -1
 
-            new_ship_status = None
-
-            if po_status in ('Shipped', 'Partially Shipped'):
-                if current_ship_status == 'With Forwarder':
-                    new_ship_status = 'Shipped'
-
-            elif po_status == 'In Transit':
-                if current_ship_status in ['With Forwarder', 'Shipped']:
-                    new_ship_status = 'In Transit'
-
-            elif po_status == 'Received':
-                # Check if ALL POs in this shipment are now 'Received'
+            if po_status == 'Delivered':
+                # Only advance to Delivered once ALL POs sharing this shipment are Delivered
                 cursor.execute("""
                     SELECT COUNT(*) as total,
-                           SUM(CASE WHEN po.status = 'Received' THEN 1 ELSE 0 END) as received
+                           SUM(CASE WHEN po.status = 'Delivered' THEN 1 ELSE 0 END) as delivered
                     FROM shipment_po_link spl
                     JOIN purchase_orders po ON po.id = spl.po_id
                     WHERE spl.shipment_id = ? AND po.deleted_at IS NULL
                 """, (sid,))
                 stats = cursor.fetchone()
-                if stats and stats['total'] == stats['received']:
-                    new_ship_status = 'Delivered'
-                else:
-                    if current_ship_status in ['In Transit', 'Shipped', 'With Forwarder']:
-                        new_ship_status = 'Arrived'
+                new_ship_status = 'Delivered' if stats and stats['total'] == stats['delivered'] else 'Arrived'
+            else:
+                new_ship_status = target_stage
 
-            if new_ship_status and new_ship_status != current_ship_status:
-                notes = json.loads(ship_row['notes'] or '[]')
-                notes.append({
-                    "date": str(date.today()),
-                    "author": "System Sync",
-                    "text": f"Status auto-updated to {new_ship_status} (PO status changed to {po_status})"
-                })
-                actual_arr = ship_row["actual_arrival"]
-                if new_ship_status == "Delivered" and not actual_arr:
-                    actual_arr = str(date.today())
-                cursor.execute("""
-                    UPDATE shipments
-                    SET status = ?, notes = ?, actual_arrival = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (new_ship_status, json.dumps(notes), actual_arr, sid))
+            new_idx = _SHIP_STAGES.index(new_ship_status)
+            if new_idx <= current_idx:
+                continue  # never move a shipment backwards
+
+            notes = json.loads(ship_row['notes'] or '[]')
+            notes.append({
+                "date": str(date.today()),
+                "author": "System Sync",
+                "text": f"Status auto-updated to {new_ship_status} (PO status changed to {po_status})"
+            })
+            actual_arr = ship_row["actual_arrival"]
+            if new_ship_status == "Delivered" and not actual_arr:
+                actual_arr = str(date.today())
+            cursor.execute("""
+                UPDATE shipments
+                SET status = ?, notes = ?, actual_arrival = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (new_ship_status, json.dumps(notes), actual_arr, sid))
     except Exception as e:
         print(f"Error syncing shipment from PO: {e}")
 
@@ -348,19 +357,20 @@ def _recalc_po_status(cursor, po_id):
     and the collective status of those shipments.
 
     Status rules (in priority order):
-    - Skip: Draft, Sent, Cancelled — managed manually
+    - Skip: Draft, Cancelled — managed manually
     - Confirmed: no qty shipped yet
-    - Partially Shipped: 0 < qty_shipped < total_po_qty
-    - Received: all linked shipments are Delivered
-    - In Transit: any shipment is In Transit, Arrived, or Under Clearance
-    - Shipped: all qty loaded but not yet in transit / delivered
+    - Part Load: 0 < qty_shipped < total_po_qty
+    - Delivered: all linked shipments are Delivered
+    - Arrived: any shipment is Arrived (and not all Delivered)
+    - In Transit: any shipment is In Transit
+    - Shipped: all qty loaded but not yet in transit / arrived / delivered
     """
     try:
         cursor.execute(
             "SELECT status FROM purchase_orders WHERE id = ? AND deleted_at IS NULL", (po_id,)
         )
         row = cursor.fetchone()
-        if not row or row['status'] in ('Draft', 'Sent', 'Cancelled'):
+        if not row or row['status'] in ('Draft', 'Cancelled'):
             return
 
         current_status = row['status']
@@ -384,7 +394,7 @@ def _recalc_po_status(cursor, po_id):
         if shipment_count == 0 or shipped_qty <= 0:
             new_status = 'Confirmed'
         elif total_qty > 0 and shipped_qty < total_qty:
-            new_status = 'Partially Shipped'
+            new_status = 'Part Load'
         else:
             # All qty loaded — derive status from shipment statuses
             cursor.execute("""
@@ -395,8 +405,10 @@ def _recalc_po_status(cursor, po_id):
             """, (po_id,))
             statuses = [r['status'] for r in cursor.fetchall()]
             if statuses and all(st == 'Delivered' for st in statuses):
-                new_status = 'Received'
-            elif any(st in ('In Transit', 'Arrived', 'Under Clearance') for st in statuses):
+                new_status = 'Delivered'
+            elif any(st == 'Arrived' for st in statuses):
+                new_status = 'Arrived'
+            elif any(st == 'In Transit' for st in statuses):
                 new_status = 'In Transit'
             else:
                 new_status = 'Shipped'
@@ -582,7 +594,7 @@ def _auto_create_shipment_for_po(cursor, po_id, po_dict):
     Shipment defaults:
       - departure_date  = po.due_date  (the "expected shipment date" filled in PO form)
       - expected_arrival = departure_date + 35 days  (typical LCL sea transit China→India)
-      - status          = "With Forwarder"
+      - status          = "Confirmed"
       - description     = "<PO number> — <Supplier company>"
     """
     from datetime import timedelta
@@ -643,7 +655,7 @@ def _auto_create_shipment_for_po(cursor, po_id, po_dict):
         INSERT INTO shipments
             (id, forwarder_id, booking_ref, departure_date, expected_arrival,
              actual_arrival, status, description, notes, created_at, updated_at)
-        VALUES (?, ?, NULL, ?, ?, NULL, 'With Forwarder', ?, ?, ?, ?)
+        VALUES (?, ?, NULL, ?, ?, NULL, 'Confirmed', ?, ?, ?, ?)
     """, (
         ship_id, fid,
         departure.isoformat(), arrival.isoformat(),
@@ -2572,7 +2584,7 @@ def supplier_analytics():
                     COUNT(po.id)    AS total_pos,
                     SUM(CASE WHEN po.status NOT IN ('Cancelled') THEN 1 ELSE 0 END)
                                     AS active_pos,
-                    SUM(CASE WHEN po.status IN ('Partially Shipped','Shipped') THEN 1 ELSE 0 END)
+                    SUM(CASE WHEN po.status IN ('Part Load','Shipped') THEN 1 ELSE 0 END)
                                     AS shipped_pos,
                     SUM(CASE WHEN po.status = 'In Transit' THEN 1 ELSE 0 END)
                                     AS in_transit_pos,
@@ -2603,10 +2615,10 @@ def supplier_analytics():
                 LEFT JOIN (
                     SELECT po_id, MIN(changed_at) as received_at
                     FROM po_status_log
-                    WHERE to_status = 'Received'
+                    WHERE to_status = 'Delivered'
                     GROUP BY po_id
                 ) rlog ON rlog.po_id = po.id
-                WHERE po.deleted_at IS NULL AND po.status = 'Received'
+                WHERE po.deleted_at IS NULL AND po.status = 'Delivered'
             """)
             delivery_rows = cursor.fetchall()
 
@@ -3360,7 +3372,7 @@ def import_data():
                     ship.get("departure_date", ""),
                     ship.get("expected_arrival", ""),
                     ship.get("actual_arrival"),
-                    ship.get("status", "With Forwarder"),
+                    ship.get("status", "Confirmed"),
                     ship.get("description", ""),
                     json.dumps(ship.get("notes", [])),
                     ship.get("created_at", datetime.now().isoformat()),
@@ -3852,7 +3864,7 @@ def print_po(pid):
           <div style="color:#1e40af">{_e(sup.get('bank_name',''))}{acc}{swift}</div>
         </div>"""
 
-    status_color = {"Draft":"#6b7280","Sent":"#2563eb","Confirmed":"#16a34a","Shipped":"#7c3aed","In Transit":"#f97316","Received":"#059669","Cancelled":"#dc2626"}.get(po.get("status"), "#6b7280")
+    status_color = {"Draft":"#6b7280","Confirmed":"#16a34a","Part Load":"#f97316","Shipped":"#7c3aed","In Transit":"#f97316","Arrived":"#0ea5e9","Delivered":"#059669","Cancelled":"#dc2626"}.get(po.get("status"), "#6b7280")
 
     # Payment Breakdown
     pay_breakdown_html = ""
@@ -6143,9 +6155,9 @@ def get_dashboard_stats():
 
         cursor.execute("""
             SELECT COUNT(*) FROM shipments
-            WHERE status IN ('Arrived','Under Clearance') AND deleted_at IS NULL
+            WHERE status = 'Arrived' AND deleted_at IS NULL
         """)
-        under_clearance = cursor.fetchone()[0]
+        arrived_count = cursor.fetchone()[0]
 
         cursor.execute("""
             SELECT COUNT(*) FROM shipments
@@ -6191,7 +6203,7 @@ def get_dashboard_stats():
         "in_transit": in_transit,
         "arriving_this_week": arriving_this_week,
         "overdue": overdue,
-        "under_clearance": under_clearance,
+        "arrived": arrived_count,
         "delivered_this_month": delivered_this_month,
         "forwarder_stats": forwarder_stats,
     })

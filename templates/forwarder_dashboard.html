@@ -395,7 +395,7 @@ tr.pl-items-row td{border-bottom:1px solid var(--border)}
     <div class="stat-card blue"><div class="stat-val" id="stat-transit">0</div><div class="stat-label">Active Shipments</div></div>
     <div class="stat-card green"><div class="stat-val" id="stat-week">0</div><div class="stat-label">Arriving This Week</div></div>
     <div class="stat-card red"><div class="stat-val" id="stat-overdue">0</div><div class="stat-label">Overdue</div></div>
-    <div class="stat-card orange"><div class="stat-val" id="stat-clearance">0</div><div class="stat-label">Under Clearance</div></div>
+    <div class="stat-card orange"><div class="stat-val" id="stat-clearance">0</div><div class="stat-label">Arrived</div></div>
     <div class="stat-card gray"><div class="stat-val" id="stat-delivered">0</div><div class="stat-label">Total Delivered</div></div>
   </div>
 
@@ -411,11 +411,10 @@ tr.pl-items-row td{border-bottom:1px solid var(--border)}
       <div class="table-title">Active Shipments</div>
       <select id="filterStatus" onchange="renderTable()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;color:var(--text);font-family:var(--font);font-size:11px;cursor:pointer;color-scheme:dark">
         <option value="">All Statuses</option>
-        <option value="With Forwarder">With Forwarder</option>
+        <option value="Confirmed">Confirmed</option>
         <option value="Shipped">Shipped</option>
         <option value="In Transit">In Transit</option>
         <option value="Arrived">Arrived</option>
-        <option value="Under Clearance">Under Clearance</option>
         <option value="Delivered">Delivered</option>
       </select>
     </div>
@@ -515,11 +514,10 @@ tr.pl-items-row td{border-bottom:1px solid var(--border)}
           <div class="form-group">
             <label>Current Status</label>
             <select id="s_status">
-              <option value="With Forwarder">With Forwarder</option>
+              <option value="Confirmed">Confirmed</option>
               <option value="Shipped">Shipped</option>
               <option value="In Transit">In Transit</option>
               <option value="Arrived">Arrived</option>
-              <option value="Under Clearance">Under Clearance</option>
               <option value="Delivered">Delivered</option>
             </select>
           </div>
@@ -581,11 +579,10 @@ tr.pl-items-row td{border-bottom:1px solid var(--border)}
         <div class="form-group">
           <label>Status</label>
           <select id="ns_status">
-            <option value="With Forwarder">With Forwarder</option>
+            <option value="Confirmed">Confirmed</option>
             <option value="Shipped" selected>Shipped</option>
             <option value="In Transit">In Transit</option>
             <option value="Arrived">Arrived</option>
-            <option value="Under Clearance">Under Clearance</option>
             <option value="Delivered">Delivered</option>
           </select>
         </div>
@@ -737,13 +734,13 @@ let currentShipment = null;
 let sortField = 'expected_arrival', sortOrder = 'asc';
 let ganttChart = null;
 
-const STAGES = ["With Forwarder","Shipped","In Transit","Arrived","Under Clearance","Delivered"];
+const STAGES = ["Confirmed","Shipped","In Transit","Arrived","Delivered"];
 
 const STATUS_BADGE = {
   Draft:'badge-yellow', Confirmed:'badge-purple',
-  'Partially Shipped':'badge-orange',
+  'Part Load':'badge-orange',
   Shipped:'badge-cyan', 'In Transit':'badge-orange',
-  Received:'badge-green', Cancelled:'badge-red'
+  Arrived:'badge-orange', Delivered:'badge-green', Cancelled:'badge-red'
 };
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -788,7 +785,7 @@ async function fetchStats() {
   document.getElementById('stat-transit').textContent = d.in_transit;
   document.getElementById('stat-week').textContent = d.arriving_this_week;
   document.getElementById('stat-overdue').textContent = d.overdue;
-  document.getElementById('stat-clearance').textContent = d.under_clearance;
+  document.getElementById('stat-clearance').textContent = d.arrived;
   document.getElementById('stat-delivered').textContent = d.delivered_this_month;
 
   const banner = document.getElementById('delayBanner');
@@ -823,7 +820,7 @@ async function fetchStats() {
 // Shows POs that have a forwarder assigned but are not yet linked to any shipment
 function renderPendingPOs() {
   const linkedPoIds = new Set(shipments.flatMap(s => s.linked_pos.map(p => p.id)));
-  const SKIP = new Set(['Cancelled', 'Received']);
+  const SKIP = new Set(['Cancelled', 'Delivered']);
 
   const pending = allPOs.filter(p =>
     p.forwarder_id && p.forwarder_id.trim() &&
@@ -892,9 +889,9 @@ function renderTable() {
     const isSoon = days >= 0 && days <= 3 && s.status !== 'Delivered';
     const rowCls = isOver?'overdue':isSoon?'soon':s.status==='Delivered'?'delivered':'';
 
-    // PO chips — green dot if PO is active (Partially Shipped/Shipped/In Transit)
+    // PO chips — green dot if PO is active (Part Load/Shipped/In Transit)
     const chips = s.linked_pos.map(p => {
-      const active = ['Partially Shipped','Shipped','In Transit'].includes(p.status);
+      const active = ['Part Load','Shipped','In Transit'].includes(p.status);
       const qtyLabel = p.qty_shipped > 0 ? ` · ${p.qty_shipped} ${p.total_po_qty ? 'of '+p.total_po_qty : ''} pcs` : '';
       return `<span class="po-chip ${active?'active':''}" title="PO ${p.po_number} · ${p.status}${qtyLabel}"><span class="dot"></span>${esc(p.po_number)}</span>`;
     }).join('');
@@ -1191,9 +1188,9 @@ async function editShipment(id) {
 
   const SC = {
     Draft:'color:var(--accent4)',Confirmed:'color:var(--accent3)',
-    'Partially Shipped':'color:var(--orange)',
+    'Part Load':'color:var(--orange)',
     Shipped:'color:var(--cyan)','In Transit':'color:var(--orange)',
-    Received:'color:var(--accent)',Cancelled:'color:var(--red)'
+    Arrived:'color:var(--orange)',Delivered:'color:var(--accent)',Cancelled:'color:var(--red)'
   };
 
   document.getElementById('po-selector').innerHTML = eligible.length
@@ -1486,7 +1483,7 @@ function openDrawer(id) {
               <span class="badge ${STATUS_BADGE[p.status]||'badge-gray'}" style="font-size:9px;padding:2px 6px">${p.status}</span>
             </div>
             <div style="display:flex;gap:6px;align-items:center">
-              ${p.status === 'Partially Shipped' && remaining > 0
+              ${p.status === 'Part Load' && remaining > 0
                 ? `<button class="btn btn-green btn-xs" onclick="shipRemaining('${s.id}','${p.id}')">+ Ship Remaining</button>`
                 : ''}
               <button class="btn btn-ghost btn-xs" onclick="unlinkPO('${s.id}','${p.id}')">Unlink</button>
@@ -1613,9 +1610,9 @@ async function openNewShipmentModal(prefillPoId = null, prefillItems = null) {
   document.getElementById('ns-po-selector').innerHTML = '<div style="padding:8px;color:var(--text3);font-size:11px">Loading…</div>';
   document.getElementById('newShipmentOverlay').classList.add('open');
 
-  const eligible = allPOs.filter(p => !['Cancelled', 'Received'].includes(p.status));
+  const eligible = allPOs.filter(p => !['Cancelled', 'Delivered'].includes(p.status));
   const summaryMap = {};
-  await Promise.all(eligible.filter(p => p.id === prefillPoId || p.status === 'Partially Shipped').map(async p => {
+  await Promise.all(eligible.filter(p => p.id === prefillPoId || p.status === 'Part Load').map(async p => {
     try {
       const r = await fetch(`/api/po/${p.id}/shipment-summary`);
       if (r.ok) summaryMap[p.id] = await r.json();

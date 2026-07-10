@@ -370,27 +370,6 @@ def init_db():
                 filename, original, uploaded_at, confirmed, confirmed_at
             FROM po_payments
         """)
-    
-        # ── REPAIR: fix shipments stuck in non-Delivered status ─────────────────
-        # ship_row.get() bug previously prevented _sync_shipment_from_po from
-        # marking shipments as Delivered when all linked POs were Received.
-        cursor.execute("""
-            UPDATE shipments
-            SET status = 'Delivered',
-                actual_arrival = COALESCE(actual_arrival, date('now')),
-                updated_at = CURRENT_TIMESTAMP
-            WHERE deleted_at IS NULL
-              AND status NOT IN ('Delivered', 'Cancelled')
-              AND id IN (
-                SELECT spl.shipment_id
-                FROM shipment_po_link spl
-                JOIN purchase_orders po ON po.id = spl.po_id
-                WHERE po.deleted_at IS NULL
-                GROUP BY spl.shipment_id
-                HAVING COUNT(*) > 0
-                   AND COUNT(*) = SUM(CASE WHEN po.status = 'Received' THEN 1 ELSE 0 END)
-              )
-        """)
 
         # ── SUPPLIER PAYMENT TERMS TABLE ────────────────────────────────────────
         # One record per supplier — stores the agreed payment arrangement.
@@ -626,6 +605,70 @@ def init_db():
         _safe_add_column(cursor, "shipment_po_link", "qty_shipped", "REAL DEFAULT 0")
         _safe_add_column(cursor, "shipment_po_link", "part_no",     "INTEGER DEFAULT 1")
         _safe_add_column(cursor, "shipment_po_link", "items_json",  "TEXT DEFAULT '[]'")
+
+        # ── STATUS VOCABULARY UNIFICATION ────────────────────────────────────────
+        # PO status and shipment status now share one vocabulary so the Purchase
+        # Orders page and the Shipment Tracking page always agree:
+        #   Draft, Confirmed, Part Load, Shipped, In Transit, Arrived, Delivered
+        #   (+ Cancelled, which is PO-only and outside the shipment lifecycle)
+        # Rename legacy values in place. Idempotent — no-op once migrated.
+        cursor.execute("""
+            UPDATE purchase_orders
+            SET status = CASE status
+                    WHEN 'Sent'              THEN 'Draft'
+                    WHEN 'Partially Shipped' THEN 'Part Load'
+                    WHEN 'Received'          THEN 'Delivered'
+                    ELSE status
+                END
+            WHERE status IN ('Sent', 'Partially Shipped', 'Received')
+        """)
+        cursor.execute("""
+            UPDATE shipments
+            SET status = CASE status
+                    WHEN 'With Forwarder'  THEN 'Confirmed'
+                    WHEN 'Under Clearance' THEN 'Arrived'
+                    ELSE status
+                END
+            WHERE status IN ('With Forwarder', 'Under Clearance')
+        """)
+        cursor.execute("""
+            UPDATE po_status_log
+            SET from_status = CASE from_status
+                    WHEN 'Sent'              THEN 'Draft'
+                    WHEN 'Partially Shipped' THEN 'Part Load'
+                    WHEN 'Received'          THEN 'Delivered'
+                    ELSE from_status
+                END,
+                to_status = CASE to_status
+                    WHEN 'Sent'              THEN 'Draft'
+                    WHEN 'Partially Shipped' THEN 'Part Load'
+                    WHEN 'Received'          THEN 'Delivered'
+                    ELSE to_status
+                END
+            WHERE from_status IN ('Sent', 'Partially Shipped', 'Received')
+               OR to_status   IN ('Sent', 'Partially Shipped', 'Received')
+        """)
+
+        # ── REPAIR: fix shipments stuck in non-Delivered status ─────────────────
+        # ship_row.get() bug previously prevented _sync_shipment_from_po from
+        # marking shipments as Delivered when all linked POs were Delivered.
+        cursor.execute("""
+            UPDATE shipments
+            SET status = 'Delivered',
+                actual_arrival = COALESCE(actual_arrival, date('now')),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE deleted_at IS NULL
+              AND status NOT IN ('Delivered', 'Cancelled')
+              AND id IN (
+                SELECT spl.shipment_id
+                FROM shipment_po_link spl
+                JOIN purchase_orders po ON po.id = spl.po_id
+                WHERE po.deleted_at IS NULL
+                GROUP BY spl.shipment_id
+                HAVING COUNT(*) > 0
+                   AND COUNT(*) = SUM(CASE WHEN po.status = 'Delivered' THEN 1 ELSE 0 END)
+              )
+        """)
 
         # ── PACKING LISTS ────────────────────────────────────────────────────────
         cursor.execute("""
