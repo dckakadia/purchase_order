@@ -358,12 +358,16 @@ def _recalc_po_status(cursor, po_id):
 
     Status rules (in priority order):
     - Skip: Draft, Cancelled — managed manually
-    - Confirmed: no qty shipped yet
-    - Part Load: 0 < qty_shipped < total_po_qty
-    - Delivered: all linked shipments are Delivered
-    - Arrived: any shipment is Arrived (and not all Delivered)
-    - In Transit: any shipment is In Transit
-    - Shipped: all qty loaded but not yet in transit / arrived / delivered
+    - Confirmed: no shipment linked yet
+    - Part Load: a shipment is linked AND 0 < qty_shipped < total_po_qty
+      (i.e. qty tracking is actually in use and some qty remains unshipped)
+    - Otherwise (qty tracking unused, or fully loaded) — derive from the
+      linked shipment(s)' own status, so the PO never disagrees with the
+      shipment it's actually attached to:
+        Delivered: all linked shipments are Delivered
+        Arrived: any shipment is Arrived (and not all Delivered)
+        In Transit: any shipment is In Transit
+        Shipped: none of the above (Confirmed/Shipped stage)
     """
     try:
         cursor.execute(
@@ -391,12 +395,14 @@ def _recalc_po_status(cursor, po_id):
         shipped_qty = float(agg['shipped'] or 0)
         shipment_count = int(agg['shipment_count'] or 0)
 
-        if shipment_count == 0 or shipped_qty <= 0:
+        if shipment_count == 0:
             new_status = 'Confirmed'
-        elif total_qty > 0 and shipped_qty < total_qty:
+        elif total_qty > 0 and 0 < shipped_qty < total_qty:
             new_status = 'Part Load'
         else:
-            # All qty loaded — derive status from shipment statuses
+            # Fully loaded, or qty tracking wasn't used for this link —
+            # either way, derive status from the shipment(s) actual status
+            # instead of assuming nothing has happened.
             cursor.execute("""
                 SELECT s.status
                 FROM shipment_po_link spl
@@ -410,8 +416,11 @@ def _recalc_po_status(cursor, po_id):
                 new_status = 'Arrived'
             elif any(st == 'In Transit' for st in statuses):
                 new_status = 'In Transit'
-            else:
+            elif any(st == 'Shipped' for st in statuses):
                 new_status = 'Shipped'
+            else:
+                # No shipment has left the Confirmed stage yet
+                new_status = 'Confirmed'
 
         if new_status != current_status:
             cursor.execute(
