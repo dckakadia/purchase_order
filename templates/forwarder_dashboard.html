@@ -906,7 +906,7 @@ function renderTable() {
             ${esc(s.description)||'<span style="color:var(--text3)">—</span>'}
           </div>
           <div style="font-size:10px;color:var(--text2);margin-top:2px">${s.booking_ref?'Ref: '+esc(s.booking_ref):'<span style="color:var(--text3)">No booking ref yet</span>'}</div>
-          ${s.pl_id?`<div style="font-size:9px;color:var(--cyan);margin-top:2px">📦 ${s.pl_total_cartons||0} ctns · ${(+(s.pl_total_cbm||0)).toFixed(2)} CBM · ${(+(s.pl_gross_weight_kg||0)).toFixed(1)} kg</div>`:''}
+          ${s.pl_id?`<div style="font-size:11px;font-weight:600;color:#7dd3fc;margin-top:3px">📦 ${s.pl_total_cartons||0} ctns · ${(+(s.pl_total_cbm||0)).toFixed(2)} CBM · ${(+(s.pl_gross_weight_kg||0)).toFixed(1)} kg</div>`:''}
         </td>
         <td style="font-weight:600">${esc(s.forwarder_name)}</td>
         <td><div class="po-chips">${chips||'<span style="color:var(--text3);font-size:10px">—</span>'}</div></td>
