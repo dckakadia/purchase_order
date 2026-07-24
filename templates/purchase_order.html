@@ -4094,6 +4094,21 @@ let _attachPendingFile = null;
 
 let _paymentPendingFiles = {1: null, 2: null};
 
+// Derive payment-proof slot labels (and whether slot 2 applies) from the PO's actual
+// Payment Conditions text, instead of hardcoding "30% Advance" / "70% Balance".
+function computePaymentSlots(paymentConditions){
+  const pc = (paymentConditions || '').trim();
+  const m = pc.match(/(\d+)%\s*Advance.*?(\d+)%/i);
+  if(m){
+    const pct1 = parseInt(m[1], 10), pct2 = parseInt(m[2], 10);
+    let label2 = `${pct2}% Balance`;
+    if(/bl/i.test(pc)) label2 = `${pct2}% on BL`;
+    else if(/shipment/i.test(pc)) label2 = `${pct2}% on Shipment`;
+    return {single: false, label1: `${pct1}% Advance`, label2};
+  }
+  return {single: true, label1: pc || '100% Advance'};
+}
+
 function openAttachments(pid){
   document.getElementById('attach_po_id').value = pid;
   document.getElementById('attachLabelRow').style.display = 'none';
@@ -4111,6 +4126,21 @@ function openAttachments(pid){
     const su = document.getElementById(`paySlot${s}Upload`);
     if(su) su.style.display = 'block';
   });
+
+  const po = pos.find(p => p.id === pid);
+  const slots = computePaymentSlots(po ? po.payment_conditions : '');
+  document.getElementById('paySlotLabel1').textContent = slots.label1;
+  const card2 = document.getElementById('paySlotCard2');
+  const grid = document.getElementById('paySlotsGrid');
+  if(slots.single){
+    card2.style.display = 'none';
+    grid.style.gridTemplateColumns = '1fr';
+  } else {
+    card2.style.display = 'block';
+    grid.style.gridTemplateColumns = 'minmax(0,1fr) minmax(0,1fr)';
+    document.getElementById('paySlotLabel2').textContent = slots.label2;
+  }
+
   openModal('attachOverlay');
   renderAttachList(pid);
   loadPaymentProofStatus(pid);
@@ -5192,11 +5222,11 @@ table.qs-grid .qs-savings-row td.td-savings-sup{text-align:right}
         <span style="font-size:12px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.07em">Payment Proof</span>
         <span style="font-size:9px;color:var(--text2);margin-left:4px">· PDF only · Permanent once confirmed</span>
       </div>
-      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px">
+      <div id="paySlotsGrid" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px">
 
-        <!-- SLOT 1: 30% Advance -->
+        <!-- SLOT 1 -->
         <div style="background:rgba(0,0,0,.15);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:10px 12px">
-          <div style="font-size:10px;font-weight:800;color:var(--accent);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">30% Advance</div>
+          <div id="paySlotLabel1" style="font-size:10px;font-weight:800;color:var(--accent);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">30% Advance</div>
           <div id="paySlot1Upload">
             <div id="payDrop1"
               style="border:2px dashed rgba(34,197,94,.3);border-radius:6px;padding:14px;text-align:center;cursor:pointer;transition:all .2s"
@@ -5230,9 +5260,9 @@ table.qs-grid .qs-savings-row td.td-savings-sup{text-align:right}
           </div>
         </div>
 
-        <!-- SLOT 2: 70% Balance -->
-        <div style="background:rgba(0,0,0,.15);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:10px 12px">
-          <div style="font-size:10px;font-weight:800;color:var(--accent2);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">70% Balance</div>
+        <!-- SLOT 2 -->
+        <div id="paySlotCard2" style="background:rgba(0,0,0,.15);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:10px 12px">
+          <div id="paySlotLabel2" style="font-size:10px;font-weight:800;color:var(--accent2);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">70% Balance</div>
           <div id="paySlot2Upload">
             <div id="payDrop2"
               style="border:2px dashed rgba(59,130,246,.3);border-radius:6px;padding:14px;text-align:center;cursor:pointer;transition:all .2s"
