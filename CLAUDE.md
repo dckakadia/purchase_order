@@ -18,10 +18,14 @@ python purchase_order_app.py
 ## Deployment
 ```bash
 git push origin main
-# Then SSH to server:
-# git pull origin main && pm2 restart purchase_order
+python deploy.py   # SSH (key auth): DB backup → pull → pip install → syntax check → restart → health check
 ```
 Validate syntax before pushing: `python -c "import purchase_order_app; print('OK')"`
+
+- Server SSH accepts **keys only** (password login disabled).
+- The GitHub repo is **public** — never commit secrets.
+- Repo uses LF line endings (`.gitattributes`); `logs/*.pid` and `*_out.txt` are git-ignored.
+- Backup progress (`/api/admin/backup`) is shared across gunicorn workers via `data/po/backup_state.json` + `backup.lock` (fcntl).
 
 ## Key Architecture — Shipment Part-Load System
 

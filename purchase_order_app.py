@@ -1,7 +1,7 @@
 """
 Purchase Order — Unified Flask App (SQLite Version)
 Replaces JSON storage with SQLite for performance & safety
-Port: 5005
+Port: 8090 (gunicorn via PM2 in production; `python purchase_order_app.py` locally)
 """
 
 import csv
@@ -3325,6 +3325,17 @@ def reset_data():
     """Wipe all app data and restore default settings."""
     with get_db() as conn:
         cursor = conn.cursor()
+        # Children first. Several of these also cascade from their parents, but
+        # customer_invoices has no FK to customers, so it must be cleared explicitly.
+        cursor.execute("DELETE FROM packing_list_carton_items")
+        cursor.execute("DELETE FROM packing_list_cartons")
+        cursor.execute("DELETE FROM packing_lists")
+        cursor.execute("DELETE FROM customer_invoice_items")
+        cursor.execute("DELETE FROM customer_invoices")
+        cursor.execute("DELETE FROM supplier_invoice_items")
+        cursor.execute("DELETE FROM supplier_invoices")
+        cursor.execute("DELETE FROM supplier_payment_terms")
+        cursor.execute("DELETE FROM po_payment_proofs")
         cursor.execute("DELETE FROM shipment_po_link")
         cursor.execute("DELETE FROM shipments")
         cursor.execute("DELETE FROM po_status_log")
@@ -3346,10 +3357,12 @@ def reset_data():
         cursor.execute("DELETE FROM settings")
         init_default_settings(conn)
 
-    # Clear uploaded attachment files too
-    if os.path.isdir(ATTACH_DIR):
-        for name in os.listdir(ATTACH_DIR):
-            path = os.path.join(ATTACH_DIR, name)
+    # Clear uploaded attachment and packing-list files too
+    for folder in (ATTACH_DIR, PL_DIR):
+        if not os.path.isdir(folder):
+            continue
+        for name in os.listdir(folder):
+            path = os.path.join(folder, name)
             if os.path.isdir(path):
                 shutil.rmtree(path, ignore_errors=True)
             else:
@@ -7918,14 +7931,74 @@ def save_user():
 
 # ── GOOGLE DRIVE BACKUP (RCLONE) ──────────────────────────────────────────────
 
-backup_state = {
-    "running": False,
-    "lastStatus": None,
-    "lastError": None,
-    "lastTimestamp": None,
-    "stage": None,
-    "overallPct": 0
-}
+# Backup progress must be visible to every gunicorn worker, so it lives in a
+# JSON file rather than process memory. A file lock held for the whole run
+# stops two workers starting backups at once and lets /status detect a run
+# that died without cleaning up.
+try:
+    import fcntl
+except ImportError:  # Windows dev machines: fall back to single-process behaviour
+    fcntl = None
+
+BACKUP_STATE_FILE = os.path.join(DATA_DIR, "backup_state.json")
+BACKUP_LOCK_FILE = os.path.join(DATA_DIR, "backup.lock")
+_BACKUP_DEFAULTS = {"running": False, "lastStatus": None, "lastError": None,
+                    "lastTimestamp": None, "stage": None, "overallPct": 0}
+_backup_lock_fh = None  # open handle while this process owns the backup lock
+
+
+def _read_backup_state():
+    try:
+        with open(BACKUP_STATE_FILE) as f:
+            return {**_BACKUP_DEFAULTS, **json.load(f)}
+    except (OSError, ValueError):
+        return dict(_BACKUP_DEFAULTS)
+
+
+def _update_backup_state(changes):
+    state = _read_backup_state()
+    state.update(changes)
+    tmp = BACKUP_STATE_FILE + ".tmp.%d" % os.getpid()
+    with open(tmp, "w") as f:
+        json.dump(state, f)
+    os.replace(tmp, BACKUP_STATE_FILE)  # atomic: readers never see half a file
+
+
+def _try_acquire_backup_lock():
+    """Return True if this process now owns the backup lock."""
+    global _backup_lock_fh
+    if fcntl is None:
+        return not _read_backup_state().get("running")
+    fh = open(BACKUP_LOCK_FILE, "w")
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fh.close()
+        return False
+    _backup_lock_fh = fh
+    return True
+
+
+def _release_backup_lock():
+    global _backup_lock_fh
+    if _backup_lock_fh is not None:
+        fcntl.flock(_backup_lock_fh, fcntl.LOCK_UN)
+        _backup_lock_fh.close()
+        _backup_lock_fh = None
+
+
+def _backup_is_running():
+    """True while some process holds the lock (immune to stale 'running' flags)."""
+    if fcntl is None:
+        return bool(_read_backup_state().get("running"))
+    with open(BACKUP_LOCK_FILE, "w") as fh:
+        try:
+            fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return True
+        fcntl.flock(fh, fcntl.LOCK_UN)
+        return False
+
 
 def parse_rclone_stats(line):
     result = {}
@@ -8002,24 +8075,22 @@ def perform_backup():
     def update_stage_1(stats):
         pct = stats.get('percentage', 0)
         overall = min(5, int(pct * 0.05))
-        backup_state.update(stats)
-        backup_state.update({"overallPct": overall, "stageLabel": "Stage 1 / 2"})
+        _update_backup_state({**stats, "overallPct": overall, "stageLabel": "Stage 1 / 2"})
 
     def update_stage_2(stats):
         pct = stats.get('percentage', 0)
         overall = 5 + int(pct * 0.95)
-        backup_state.update(stats)
-        backup_state.update({"overallPct": overall, "stageLabel": "Stage 2 / 2"})
+        _update_backup_state({**stats, "overallPct": overall, "stageLabel": "Stage 2 / 2"})
 
     try:
-        backup_state['stage'] = "Backing up database..."
+        _update_backup_state({"stage": "Backing up database..."})
         update_stage_1({"percentage": 0})
         # Try to backup DB
         run_rclone_with_progress([
             '--stats', '1s', '--stats-one-line', 'copy', db_path, 'gdrive:PurchaseOrderBackups/db'
         ], update_stage_1)
         
-        backup_state['stage'] = "Uploading attachments..."
+        _update_backup_state({"stage": "Uploading attachments..."})
         update_stage_2({"percentage": 0})
         # Try to backup Attachments
         if os.path.exists(uploads_path):
@@ -8027,52 +8098,60 @@ def perform_backup():
                 '--stats', '1s', '--stats-one-line', 'copy', uploads_path, 'gdrive:PurchaseOrderBackups/uploads'
             ], update_stage_2)
             
-        backup_state['running'] = False
-        backup_state['lastStatus'] = 'success'
-        backup_state['lastTimestamp'] = int(time.time() * 1000)
-        backup_state['overallPct'] = 100
-        backup_state['stage'] = 'Backup completed successfully!'
+        _update_backup_state({"running": False, "lastStatus": "success",
+                              "lastTimestamp": int(time.time() * 1000),
+                              "overallPct": 100, "stage": "Backup completed successfully!"})
     except Exception as e:
-        backup_state['running'] = False
-        backup_state['lastStatus'] = 'failed'
-        backup_state['lastError'] = str(e)
-        backup_state['overallPct'] = 0
+        _update_backup_state({"running": False, "lastStatus": "failed",
+                              "lastError": str(e), "overallPct": 0})
+    finally:
+        _release_backup_lock()
 
 @app.route("/api/admin/backup", methods=["POST"])
 @require_permission("admin_rbac")
 def trigger_backup():
-    if backup_state.get("running"):
+    if not _try_acquire_backup_lock():
         return jsonify({"success": True, "message": "Backup already in progress", "running": True})
-        
-    backup_state.update({
-        "running": True, "lastStatus": "running", "lastError": None,
-        "lastTimestamp": None, "stage": "Starting...", "overallPct": 0
-    })
-    
+
+    # Start from a clean slate so stale progress from the last run never shows
+    progress_keys = ("processedFiles", "totalFiles", "uploadedBytesLabel", "totalBytesLabel",
+                     "speedLabel", "etaSeconds", "percentage", "stageLabel")
+    _update_backup_state({**{k: None for k in progress_keys},
+                          "running": True, "lastStatus": "running", "lastError": None,
+                          "lastTimestamp": None, "stage": "Starting...", "overallPct": 0})
+
     t = threading.Thread(target=perform_backup)
     t.daemon = True
     t.start()
-    
+
     return jsonify({"success": True, "message": "Backup started.", "running": True})
 
 @app.route("/api/admin/backup/status", methods=["GET"])
 @require_permission("admin_rbac")
 def backup_status():
+    state = _read_backup_state()
+    running = _backup_is_running()
+    if state.get("running") and not running:
+        # The process doing the backup died (e.g. restart) before finishing
+        state.update({"lastStatus": "failed", "overallPct": 0,
+                      "lastError": "Backup was interrupted (server restarted?). Please run it again."})
+        _update_backup_state({"running": False, "lastStatus": "failed",
+                              "lastError": state["lastError"], "overallPct": 0})
     return jsonify({
         "success": True,
-        "running": backup_state.get("running"),
-        "status": backup_state.get("lastStatus"),
-        "error": backup_state.get("lastError"),
-        "timestamp": backup_state.get("lastTimestamp"),
-        "stage": backup_state.get("stage"),
-        "stageLabel": backup_state.get("stageLabel"),
-        "overallPct": backup_state.get("overallPct"),
-        "processedFiles": backup_state.get("processedFiles"),
-        "totalFiles": backup_state.get("totalFiles"),
-        "uploadedBytesLabel": backup_state.get("uploadedBytesLabel"),
-        "totalBytesLabel": backup_state.get("totalBytesLabel"),
-        "speedLabel": backup_state.get("speedLabel"),
-        "etaSeconds": backup_state.get("etaSeconds")
+        "running": running,
+        "status": state.get("lastStatus"),
+        "error": state.get("lastError"),
+        "timestamp": state.get("lastTimestamp"),
+        "stage": state.get("stage"),
+        "stageLabel": state.get("stageLabel"),
+        "overallPct": state.get("overallPct"),
+        "processedFiles": state.get("processedFiles"),
+        "totalFiles": state.get("totalFiles"),
+        "uploadedBytesLabel": state.get("uploadedBytesLabel"),
+        "totalBytesLabel": state.get("totalBytesLabel"),
+        "speedLabel": state.get("speedLabel"),
+        "etaSeconds": state.get("etaSeconds")
     })
 
 # ── PACKING LISTS ─────────────────────────────────────────────────────────────

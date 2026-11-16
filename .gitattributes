@@ -1,0 +1,9 @@
+# Store text files with LF in the repo and check them out with LF everywhere,
+# so editing on Windows doesn't show every file as "modified".
+* text=auto eol=lf
+
+*.pdf binary
+*.png binary
+*.jpg binary
+*.db  binary
+*.xlsx binary
