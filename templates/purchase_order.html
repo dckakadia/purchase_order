@@ -27,9 +27,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .filter-pill { background:transparent; border:none; color:var(--text2); padding:4px 12px; border-radius:6px; font-size:10px; font-weight:600; cursor:pointer; transition:all .2s; }
 .filter-pill:hover { color:var(--text); }
 .filter-pill.active { background:var(--bg4); color:var(--accent2); box-shadow:var(--shadow-sm); }
-.table-filter-row td { padding: 4px 10px; background: var(--bg2); border-bottom: 1px solid var(--border); }
-.table-filter-row input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 4px 6px; font-size: 10px; border-radius: 4px; outline: none; }
-.table-filter-row input:focus { border-color: var(--accent2); }
 .layout{display:flex;min-height:100vh}
 .sidebar{width:260px;min-width:260px;background:linear-gradient(180deg,var(--bg2),#0a0d15);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
 .main{flex:1;padding:32px 40px;overflow-x:hidden}
@@ -47,10 +44,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .sb-item:hover{color:var(--text);background:rgba(59,130,246,.08);border-left-color:var(--accent2)}
 .sb-item.active{color:#fff;background:rgba(59,130,246,.15);border-left-color:var(--accent2);font-weight:600}
 .sb-item svg{width:16px;height:16px;flex-shrink:0}
-.sb-divider{border:none;border-top:1px solid var(--border);margin:8px 0}
 .sb-footer{padding:14px 18px;border-top:1px solid var(--border);background:rgba(0,0,0,.2)}
-.sb-btn{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:7px;font-size:11px;cursor:pointer;border:1px solid var(--border2);background:rgba(22,28,46,.6);color:var(--text2);transition:all .2s;width:100%;margin-bottom:7px;font-family:var(--font);font-weight:600}
-.sb-btn:hover{color:var(--text);border-color:var(--accent2);background:rgba(59,130,246,.12);box-shadow:0 0 8px rgba(59,130,246,.15)}
 #importFile{display:none}
 
 /* ── page header ── */
@@ -116,7 +110,6 @@ tr:hover td{background:rgba(59,130,246,.04)}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(2px);z-index:100;display:none;align-items:center;justify-content:center;padding:40px 20px;overflow-y:auto}
 .overlay.open{display:flex}
 .modal{background:linear-gradient(135deg,var(--bg2),var(--bg3));border:1px solid var(--border2);border-radius:14px;width:100%;max-width:680px;padding:32px;position:relative;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.6);animation:modalIn .3s cubic-bezier(.4,.0,.2,1)}
-.modal-lg{max-width:980px}
 .modal-xl{max-width:1200px}
 @keyframes modalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
 .modal-title{font-size:18px;font-weight:900;color:#fff;margin-bottom:24px;letter-spacing:-.02em}
@@ -156,9 +149,6 @@ textarea{resize:vertical;min-height:70px;font-family:var(--font-cn),var(--font)}
 .li-total{text-align:right;font-size:13px;color:var(--accent);font-weight:900;margin-top:10px;padding-right:4px;letter-spacing:-.02em}
 
 /* ── landing cost panel ── */
-.lc-panel{background:linear-gradient(135deg,rgba(249,115,22,.08),rgba(245,158,11,.04));border:1px solid rgba(249,115,22,.3);border-radius:10px;padding:18px 20px;margin-top:14px;box-shadow:inset 0 1px 2px rgba(249,115,22,.1)}
-.lc-panel-title{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);margin-bottom:14px;display:flex;align-items:center;gap:8px;font-weight:900}
-.lc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .lc-grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-top:12px}
 .lc-preview{background:rgba(0,0,0,.3);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;margin-top:12px;box-shadow:inset 0 1px 3px rgba(0,0,0,.3)}
 .lc-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
@@ -175,7 +165,6 @@ textarea{resize:vertical;min-height:70px;font-family:var(--font-cn),var(--font)}
 @keyframes slideIn{from{transform:translateX(400px);opacity:0}to{transform:none;opacity:1}}
 
 /* ── report dual-button ── */
-.report-actions{display:flex;gap:8px;flex-wrap:wrap}
 
 /* ── stat-card active filter ── */
 .stat-card.filter-active{outline:2px solid #fff;outline-offset:2px;transform:translateY(-4px) scale(1.03);box-shadow:0 10px 28px rgba(59,130,246,.35)}
@@ -190,148 +179,12 @@ th.sortable:not(.asc):not(.desc) .sort-arrow::after{content:'⇅'}
 
 /* ── PO Timeline ── */
 .timeline { position: relative; padding: 20px 0; margin-left: 24px; border-left: 2px solid var(--border2); }
-.timeline-item { position: relative; margin-bottom: 24px; padding-left: 28px; }
-.timeline-dot { position: absolute; left: -9px; top: 2px; width: 16px; height: 16px; border-radius: 50%; border: 3px solid var(--bg); background: var(--text3); }
-.timeline-item.active .timeline-dot { background: var(--accent2); box-shadow: 0 0 0 4px rgba(59,130,246,.15); }
-.timeline-content { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
-.timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
-.timeline-status { font-weight: 800; font-size: 11px; text-transform: uppercase; }
-.timeline-time { font-size: 10px; color: var(--text2); }
-.timeline-note { font-size: 11px; color: var(--text); line-height: 1.4; margin-top: 5px; font-style: italic; }
 
 /* ── Analytics Dashboard ── */
-.analytics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 16px; }
-.analytics-card { background: linear-gradient(135deg, var(--bg2), var(--bg3)); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
-.analytics-sup-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-.analytics-sup-name { font-size: 16px; font-weight: 900; color: #fff; }
-.analytics-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-.metric-box { background: rgba(0,0,0,.2); padding: 10px; border-radius: 8px; border: 1px solid var(--border); }
-.metric-label { font-size: 9px; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
-.metric-val { font-size: 14px; font-weight: 800; color: #fff; }
 
 /* ── Supplier Dashboard (redesigned) ── */
-.sd-font-ui{font-family:'Noto Sans SC','Microsoft YaHei',sans-serif}
-.kpi-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:32px}
-.kpi-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px 22px;position:relative;overflow:hidden;transition:all .25s cubic-bezier(.4,0,.2,1)}
-.kpi-card::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .25s;border-radius:14px}
-.kpi-card:hover{border-color:var(--border2);transform:translateY(-3px);box-shadow:0 12px 28px rgba(0,0,0,.35)}
-.kpi-card.blue::before{background:linear-gradient(135deg,rgba(59,130,246,.06),transparent)}
-.kpi-card.green::before{background:linear-gradient(135deg,rgba(34,197,94,.06),transparent)}
-.kpi-card.purple::before{background:linear-gradient(135deg,rgba(167,139,250,.06),transparent)}
-.kpi-card.amber::before{background:linear-gradient(135deg,rgba(245,158,11,.06),transparent)}
-.kpi-card:hover::before{opacity:1}
-.kpi-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;font-size:17px;flex-shrink:0}
-.kpi-icon.blue{background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.2)}
-.kpi-icon.green{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.2)}
-.kpi-icon.purple{background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.2)}
-.kpi-icon.amber{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.2)}
-.kpi-val-lg{font-size:30px;font-weight:900;color:#fff;letter-spacing:-.03em;line-height:1}
-.kpi-val-lg.blue{color:var(--accent2)}.kpi-val-lg.green{color:var(--accent)}.kpi-val-lg.purple{color:var(--accent3)}.kpi-val-lg.amber{color:var(--accent4)}
-.kpi-label-sm{font-size:10px;color:var(--text2);letter-spacing:.1em;margin-top:8px;text-transform:uppercase;font-weight:700}
-.kpi-change{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;margin-top:10px;display:inline-block}
-.kpi-change.pos{background:rgba(34,197,94,.12);color:var(--accent);border:1px solid rgba(34,197,94,.2)}
-.kpi-change.neg{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.2)}
-.kpi-change.neu{background:rgba(107,116,153,.12);color:var(--text2);border:1px solid var(--border)}
-.sd-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap}
-.sd-label{font-size:11px;font-weight:800;color:var(--text2);letter-spacing:.1em;text-transform:uppercase}
-.sd-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.sd-sort{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text2);font-family:var(--font);font-size:11px;outline:none;cursor:pointer}
-.sd-sort:focus{border-color:var(--accent2)}
-.supplier-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
-.sup-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:all .28s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column}
-.sup-card:hover{border-color:var(--border2);transform:translateY(-4px);box-shadow:0 16px 32px rgba(0,0,0,.4)}
-.sup-card-top{padding:20px 22px 16px;border-bottom:1px solid var(--border)}
-.sup-card-top-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
-.sup-avatar{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;flex-shrink:0;letter-spacing:-.02em}
-.sup-name{font-size:15px;font-weight:900;color:#fff;line-height:1.2;letter-spacing:-.02em;margin-bottom:3px}
-.sup-meta-line{font-size:11px;color:var(--text2);line-height:1.5}
-.sup-badge-pill{padding:4px 11px;border-radius:20px;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;flex-shrink:0}
-.sup-badge-pill.great{background:rgba(34,197,94,.12);color:var(--accent);border:1px solid rgba(34,197,94,.3)}
-.sup-badge-pill.good{background:rgba(59,130,246,.12);color:var(--accent2);border:1px solid rgba(59,130,246,.3)}
-.sup-badge-pill.fair{background:rgba(245,158,11,.12);color:var(--accent4);border:1px solid rgba(245,158,11,.3)}
-.sup-badge-pill.poor{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.3)}
-.sup-badge-pill.none{background:rgba(107,116,153,.12);color:var(--text2);border:1px solid var(--border)}
-.sup-badge-pill.shipped{background:rgba(124,58,237,.15);color:#a78bfa;border:1px solid rgba(124,58,237,.35)}
-.ontime-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.ontime-lbl{font-size:10px;color:var(--text2);font-weight:700;letter-spacing:.06em}
-.ontime-num{font-size:12px;font-weight:800;color:#fff}
-.progress-track{height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
-.progress-fill{height:100%;border-radius:3px;transition:width 1s cubic-bezier(.4,0,.2,1)}
-.progress-fill.great{background:linear-gradient(90deg,var(--accent),#86efac)}
-.progress-fill.good{background:linear-gradient(90deg,var(--accent2),var(--cyan))}
-.progress-fill.fair{background:linear-gradient(90deg,var(--accent4),var(--orange))}
-.progress-fill.poor{background:linear-gradient(90deg,var(--red),var(--orange))}
-.sup-chips{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--border)}
-.sup-chip{padding:13px 10px;text-align:center;border-right:1px solid var(--border)}
-.sup-chip:last-child{border-right:none}
-.sup-chip-val{font-size:15px;font-weight:900;color:#fff;line-height:1;letter-spacing:-.02em;margin-bottom:5px}
-.sup-chip-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.09em;font-weight:700}
-.sup-card-body{padding:14px 22px;flex:1;display:flex;flex-direction:column;gap:10px}
-.spark-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:6px}
-.sparkline-wrap{display:flex;align-items:flex-end;gap:3px;height:44px;padding:0 2px}
-.spark-bar{flex:1;border-radius:2px 2px 0 0;transition:opacity .2s;opacity:.55;cursor:default;position:relative}
-.spark-bar:hover{opacity:1}
-.spark-bar::after{content:attr(data-tip);position:absolute;bottom:calc(100%+6px);left:50%;transform:translateX(-50%);background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:4px 8px;font-size:9px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:10}
-.spark-bar:hover::after{opacity:1}
-.sup-tags-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
-.sup-tag{font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(59,130,246,.08);color:var(--text2);border:1px solid var(--border);letter-spacing:.04em}
-.sup-card-footer{padding:13px 22px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
-.sup-last{font-size:10px;color:var(--text3)}
-.sup-last span{color:var(--text2);font-weight:600}
-.sd-top-section{margin-top:36px}
-.sd-section-title{font-size:12px;font-weight:800;color:var(--text);letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:8px;margin-bottom:16px}
-.sd-section-title::before{content:'';width:3px;height:16px;background:linear-gradient(180deg,var(--accent2),var(--accent3));border-radius:2px;display:inline-block}
-.sd-table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-table.sd-table{width:100%;border-collapse:collapse}
-table.sd-table th{padding:11px 16px;font-size:9px;letter-spacing:.1em;color:var(--text3);text-transform:uppercase;border-bottom:1px solid var(--border);text-align:left;font-weight:800}
-table.sd-table td{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.025);font-size:12px;color:var(--text);vertical-align:middle}
-table.sd-table tr:last-child td{border-bottom:none}
-table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
-.rank-num{width:24px;height:24px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:900}
-.rank-1{background:rgba(245,158,11,.15);color:var(--accent4);border:1px solid rgba(245,158,11,.3)}
-.rank-2{background:rgba(107,116,153,.15);color:var(--text2);border:1px solid var(--border)}
-.rank-3{background:rgba(249,115,22,.12);color:var(--orange);border:1px solid rgba(249,115,22,.25)}
-.rank-n{background:rgba(255,255,255,.05);color:var(--text3);border:1px solid var(--border)}
-.ibar-wrap{display:flex;align-items:center;gap:10px}
-.ibar-track{flex:1;height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden}
-.ibar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent2),var(--cyan))}
-.ibar-lbl{font-size:11px;font-weight:800;color:#fff;min-width:60px;text-align:right}
 
 /* ── Supplier Books ── */
-.sb-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
-.sb-kpi{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px 20px;transition:all .25s}
-.sb-kpi:hover{border-color:var(--border2);transform:translateY(-3px)}
-.sb-kpi-val{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1;margin-top:10px}
-.sb-kpi-lbl{font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-top:6px}
-.sb-ledger-panel{position:fixed;top:0;right:-100%;width:min(780px,95vw);height:100vh;background:var(--bg2);border-left:1px solid var(--border2);z-index:200;transition:right .35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,.5)}
-.sb-ledger-panel.open{right:0}
-.sb-ledger-head{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.sb-ledger-body{flex:1;overflow-y:auto;padding:20px 24px}
-.sb-ledger-close{background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:8px;transition:all .2s}
-.sb-ledger-close:hover{color:#fff;background:rgba(239,68,68,.15)}
-.sb-sub-tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--bg3);padding:4px;border-radius:8px;border:1px solid var(--border)}
-.sb-sub-tab{flex:1;padding:7px 0;text-align:center;font-size:11px;font-weight:700;cursor:pointer;border-radius:6px;color:var(--text2);transition:all .2s;border:none;background:none;font-family:var(--font)}
-.sb-sub-tab.active{background:var(--bg4);color:#fff;box-shadow:var(--shadow-sm)}
-.ledger-tbl{width:100%;border-collapse:collapse;font-size:11px}
-.ledger-tbl th{padding:9px 10px;font-size:9px;letter-spacing:.08em;color:var(--text2);text-transform:uppercase;border-bottom:1px solid var(--border);text-align:left;font-weight:800}
-.ledger-tbl td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.03);vertical-align:middle}
-.ledger-tbl tr.ldr-inv td{background:rgba(59,130,246,.07)}
-.ledger-tbl tr.ldr-pay td{background:rgba(34,197,94,.07)}
-.ledger-tbl tr.ldr-dn td{background:rgba(249,115,22,.07)}
-.ledger-tbl tr.ldr-cn td{background:rgba(167,139,250,.07)}
-.ldg-type{display:inline-block;font-size:8px;padding:2px 7px;border-radius:3px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
-.ldg-type.INVOICE{background:rgba(59,130,246,.15);color:var(--accent2)}
-.ldg-type.PAYMENT{background:rgba(34,197,94,.15);color:var(--accent)}
-.ldg-type.DEBIT_NOTE{background:rgba(249,115,22,.15);color:var(--orange)}
-.ldg-type.CREDIT_NOTE{background:rgba(167,139,250,.15);color:var(--accent3)}
-.ldg-type.ADJUSTMENT{background:rgba(107,116,153,.15);color:var(--text2)}
-.age-chip{display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px}
-.age-ok{background:rgba(34,197,94,.15);color:var(--accent)}
-.age-warn{background:rgba(245,158,11,.15);color:var(--accent4)}
-.age-alert{background:rgba(249,115,22,.15);color:var(--orange)}
-.age-crit{background:rgba(239,68,68,.15);color:var(--red)}
-.sb-overlay-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;display:none}
-.sb-overlay-bg.open{display:block}
 </style>
 
     {% if 'po_edit' not in user_permissions %}
@@ -373,6 +226,12 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
     <div class="sb-item" onclick="window.location.href='/?tab=pos'">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
       Purchase Orders
+    </div>
+    {% endif %}
+    {% if 'po_edit' in user_permissions %}
+    <div class="sb-item" onclick="window.location.href='/?tab=scanner'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h4v1.5H2.5V5H1zm10 0h4v4h-1.5V2.5H11zM1 11h1.5v2.5H5V15H1zm12.5 0H15v4h-4v-1.5h2.5zM3 7.25h10v1.5H3z"/></svg>
+      AI Invoice Scanner
     </div>
     {% endif %}
     {% if 'customer_books' in user_permissions %}
@@ -818,163 +677,6 @@ table.sd-table tr:hover td{background:rgba(59,130,246,.04)}
   </div>
 </div>
 
-<!-- SUPPLIER ANALYTICS -->
-<div class="tabs" id="tab-analytics">
-  <div class="page-header">
-    <div>
-      <div class="page-title">Supplier <span>Analytics</span></div>
-      <div class="page-sub">Performance metrics, lead times, and spend analysis</div>
-    </div>
-  </div>
-  
-  <div class="stats-bar" id="analytics-summary">
-    <!-- Will be filled by JS -->
-  </div>
-
-  <div class="analytics-grid" id="supplier-analytics-list">
-    <!-- Will be filled by JS -->
-  </div>
-</div>
-
-<!-- Supplier Dashboard Tab (redesigned) -->
-<div class="tabs" id="tab-suppliers-perf">
-  <div style="margin-bottom:28px">
-    <div class="page-title">Supplier <span>Dashboard</span></div>
-    <div class="page-sub" style="margin-bottom:18px">Performance and delivery analytics</div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:nowrap">
-      <input class="search-bar" id="sdSearchBar" placeholder="🔍 Search suppliers…" oninput="sdRefresh()" style="width:200px;flex-shrink:0">
-      <select class="sd-sort" id="sdSortSelect" onchange="sdRefresh()" style="width:auto;flex-shrink:0">
-        <option value="ontime">Sort: On-time %</option>
-        <option value="value">Sort: PO Value</option>
-        <option value="pos">Sort: Total POs</option>
-        <option value="leadtime">Sort: Lead Time</option>
-        <option value="name">Sort: Name A–Z</option>
-      </select>
-      <div class="filter-group" style="flex-shrink:0">
-        <button class="filter-pill active" id="sdFilter-all"   onclick="sdSetFilter('all',this)">All</button>
-        <button class="filter-pill"        id="sdFilter-great" onclick="sdSetFilter('great',this)">≥90%</button>
-        <button class="filter-pill"        id="sdFilter-good"  onclick="sdSetFilter('good',this)">≥80%</button>
-        <button class="filter-pill"        id="sdFilter-poor"  onclick="sdSetFilter('poor',this)">At Risk</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- KPI bar -->
-  <div class="kpi-bar">
-    <div class="kpi-card blue">
-      <div class="kpi-icon blue">🏭</div>
-      <div class="kpi-val-lg blue" id="kpi-suppliers">—</div>
-      <div class="kpi-label-sm">Active Suppliers</div>
-      <div class="kpi-change neu" id="kpi-sup-chg">—</div>
-    </div>
-    <div class="kpi-card green">
-      <div class="kpi-icon green">📦</div>
-      <div class="kpi-val-lg green" id="kpi-pos">—</div>
-      <div class="kpi-label-sm">Total POs</div>
-      <div class="kpi-change pos" id="kpi-po-chg">—</div>
-    </div>
-    <div class="kpi-card purple">
-      <div class="kpi-icon purple">💰</div>
-      <div class="kpi-val-lg purple" id="kpi-value">—</div>
-      <div class="kpi-label-sm">Total PO Value</div>
-      <div class="kpi-change pos" id="kpi-val-chg">—</div>
-    </div>
-    <div class="kpi-card amber">
-      <div class="kpi-icon amber">⏱</div>
-      <div class="kpi-val-lg amber" id="kpi-ontime">—</div>
-      <div class="kpi-label-sm">Avg On-Time Rate</div>
-      <div class="kpi-change neu" id="kpi-ot-chg">—</div>
-    </div>
-  </div>
-
-  <!-- Cards toolbar -->
-  <div class="sd-toolbar">
-    <div style="display:flex;align-items:center;gap:8px">
-      <div class="sd-label">Supplier Performance</div>
-      <span style="font-size:11px;color:var(--text3)" id="sdCardCount"></span>
-    </div>
-  </div>
-
-  <!-- Supplier cards grid -->
-  <div class="supplier-grid" id="supplier-cards-container">
-    <p style="color:var(--text2);padding:20px">Loading supplier data…</p>
-  </div>
-
-  <!-- Top by spend table -->
-  <div class="sd-top-section">
-    <div class="sd-section-title">Top Suppliers by Spend</div>
-    <div class="sd-table-wrap">
-      <table class="sd-table">
-        <thead><tr>
-          <th style="width:50px">#</th>
-          <th>Supplier</th>
-          <th>Country</th>
-          <th>Spend (CNY)</th>
-          <th>POs</th>
-          <th>On-Time</th>
-          <th>Avg Lead</th>
-        </tr></thead>
-        <tbody id="sdTopTableBody"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- SUPPLIER BOOKS TAB -->
-<div class="tabs" id="tab-supplier-books">
-  <div class="page-header">
-    <div>
-      <div class="page-title">Supplier <span>Books</span></div>
-      <div class="page-sub">Tally-style payables ledger &middot; Ageing &middot; Account Statements</div>
-    </div>
-    <button class="req-edit btn btn-primary" onclick="sbOpenEntry(null)">+ Add Entry</button>
-  </div>
-
-  <!-- KPI Cards -->
-  <div class="sb-kpi-grid">
-    <div class="sb-kpi">
-      <div style="font-size:18px">¥</div>
-      <div class="sb-kpi-val" id="sb-kpi-outusd" style="color:var(--accent2)">—</div>
-      <div class="sb-kpi-lbl">Total Outstanding (CNY)</div>
-    </div>
-    <div class="sb-kpi">
-      <div style="font-size:18px">₹</div>
-      <div class="sb-kpi-val" id="sb-kpi-outinr" style="color:var(--accent3)">—</div>
-      <div class="sb-kpi-lbl">Outstanding (INR ~)</div>
-    </div>
-    <div class="sb-kpi">
-      <div style="font-size:18px">⚠️</div>
-      <div class="sb-kpi-val" id="sb-kpi-overdue" style="color:var(--red)">—</div>
-      <div class="sb-kpi-lbl">Overdue 90+ Days</div>
-    </div>
-    <div class="sb-kpi">
-      <div style="font-size:18px">✅</div>
-      <div class="sb-kpi-val" id="sb-kpi-advance" style="color:var(--accent)">—</div>
-      <div class="sb-kpi-lbl">Advance Paid (CNY)</div>
-    </div>
-  </div>
-
-  <!-- Payables Table -->
-  <div class="table-wrap">
-    <div class="table-header">
-      <div class="table-title">Payables Overview</div>
-      <input class="search-bar" id="sbSearchBar" placeholder="Search supplier…" oninput="sbRenderTable()" style="width:200px">
-    </div>
-    <table>
-      <thead><tr>
-        <th>Supplier</th>
-        <th style="text-align:right">Billed (CNY)</th>
-        <th style="text-align:right">Paid (CNY)</th>
-        <th style="text-align:right">Outstanding (CNY)</th>
-        <th style="text-align:right">Outstanding (INR ~)</th>
-        <th>Oldest Overdue</th>
-        <th>Actions</th>
-      </tr></thead>
-      <tbody id="sb-payables-tbody"><tr class="empty-row"><td colspan="7">Loading…</td></tr></tbody>
-    </table>
-  </div>
-</div>
-
 </main><!-- /main -->
 
 </div><!-- /layout -->
@@ -1381,7 +1083,6 @@ function statusBadge(s){
 
 // ── DASHBOARD ──────────────────────────────────────────────────────────────
 let poStatusFilter = 'all';
-let poSupplierFilter = null; // New global filter
 
 function setPOFilter(status){
   poStatusFilter = status;
@@ -1390,17 +1091,6 @@ function setPOFilter(status){
   document.querySelectorAll('.stat-card').forEach(c=>c.classList.remove('filter-active'));
   const active = document.getElementById(map[status]);
   if(active) active.classList.add('filter-active');
-  renderPOs();
-}
-
-function viewSupplierPOs(sid) {
-  poSupplierFilter = sid;
-  showTab('pos', document.querySelector('.sb-item[onclick*="showTab(\'pos\'"]'));
-  setPOFilter('all'); // Also renderPOs called here
-}
-
-function clearSupplierFilter() {
-  poSupplierFilter = null;
   renderPOs();
 }
 
@@ -1434,26 +1124,12 @@ function renderPOs(){
   // Apply filters
   let list = pos;
   if (poStatusFilter !== 'all') list = list.filter(p => p.status === poStatusFilter);
-  if (poSupplierFilter) list = list.filter(p => p.supplier_id === poSupplierFilter);
-
-  // Add filter indicator if supplier filter active
-  let filterHeader = '';
-  if (poSupplierFilter) {
-    const s = suppliers.find(x => x.id === poSupplierFilter);
-    const sName = s ? (s.company || s.name) : 'Selected Supplier';
-    filterHeader = `
-      <div style="background:rgba(59,130,246,0.1); border:1px solid var(--border2); border-radius:8px; padding:10px 16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center">
-        <div style="font-size:12px; color:var(--text)">Showing POs for: <strong style="color:var(--accent2)">${esc(sName)}</strong></div>
-        <button class="btn btn-ghost btn-xs" onclick="clearSupplierFilter()">✕ Clear Filter</button>
-      </div>
-    `;
-  }
 
   if(!list.length){
     const msg = poStatusFilter==='all'
       ? 'No purchase orders matching these filters.'
       : `No <strong>${poStatusFilter}</strong> purchase orders. <a href="#" onclick="setPOFilter('all');return false;" style="color:var(--accent2);text-decoration:underline">Show all</a>`;
-    container.innerHTML= filterHeader + `<div style="text-align:center;padding:40px;color:var(--text2)">${msg}</div>`;
+    container.innerHTML= `<div style="text-align:center;padding:40px;color:var(--text2)">${msg}</div>`;
     return;
   }
   const sorted = [...list].sort((a,b)=>(b.po_number||'').localeCompare(a.po_number||'', undefined, {numeric: true, sensitivity: 'base'}));
@@ -1988,6 +1664,8 @@ function openSupplierModal(sid=null){
     const el = document.getElementById('sup_'+f);
     if(el) el.value = s ? (s[f==='swift'?'swift_code':f]||'') : (f==='country'?'China':'');
   });
+  sbResetPaymentTerms();
+  if(s) sbLoadPaymentTerms(s.id);
   openModal('supplierOverlay');
 }
 
@@ -2010,10 +1688,12 @@ async function saveSupplier(){
     if(sid){
       const u = await api(`/api/suppliers/${sid}`,'PUT',body);
       suppliers = suppliers.map(s=>s.id===sid?u:s);
+      await sbSavePaymentTerms(sid);
       toast('Supplier updated');
     } else {
       const c = await api('/api/suppliers','POST',body);
       suppliers.push(c);
+      await sbSavePaymentTerms(c.id);
       toast('Supplier added');
     }
     renderSuppliers();
@@ -2033,14 +1713,10 @@ async function deleteSupplier(sid){
 }
 
 // ── ITEMS ──────────────────────────────────────────────────────────────────
-let itemFilter='';
-function filterItems(v){ itemFilter=v.toLowerCase(); renderItems(); }
 
 function renderItems(){
   const tbody = document.getElementById('items-tbody');
-  let list = items.filter(i=>!itemFilter||
-    (i.name||'').toLowerCase().includes(itemFilter)||(i.description||'').toLowerCase().includes(itemFilter));
-  list = applySortToList(list, 'items');
+  const list = applySortToList(items.slice(), 'items');
   if(!list.length){ tbody.innerHTML='<tr class="empty-row"><td colspan="7">No items found.</td></tr>'; return; }
   tbody.innerHTML = list.map(it=>{
     const ic = it.currency||'USD';
@@ -2272,33 +1948,6 @@ async function saveSettings(){
     updatePOPreview();
     toast('Settings saved');
   } catch(err){ toast('Save failed: '+err.message,'err'); }
-}
-
-// ── EXPORT / IMPORT ────────────────────────────────────────────────────────
-function exportData(){
-  window.location.href = API_BASE + '/api/export';
-}
-
-async function importData(input){
-  const file = input.files[0]; if(!file) return;
-  const fd   = new FormData(); fd.append('file', file);
-  try{
-    const r = await fetch(API_BASE + '/api/import',{method:'POST',body:fd});
-    const d = await r.json();
-    if(d.error){ toast(d.error,'err'); return; }
-    toast(`Imported: ${d.imported.suppliers} suppliers, ${d.imported.items} items, ${d.imported.purchase_orders} POs`);
-    await init();
-  } catch(err){ toast('Import failed: '+err.message,'err'); }
-  input.value = '';
-}
-
-// ── RENDER ALL ─────────────────────────────────────────────────────────────
-function renderAll(){
-  renderDashboard();
-  renderPOs();
-  renderSuppliers();
-  renderItems();
-  renderForwarders();
 }
 
 // ── BOOT ───────────────────────────────────────────────────────────────────
@@ -3511,9 +3160,6 @@ function qsGeneratePO() {
   }, 300);
 }
 
-// Stub the old save function for any lingering calls
-function saveQuotation() { qsSave(); }
-
 async function deleteQuotation(qid) {
   if (!(await sysConfirm('Delete this quotation?'))) return;
   await fetch(`${API_BASE}/api/quotations/${qid}`, {method:'DELETE'});
@@ -4620,7 +4266,7 @@ if (qsScanDropZone) {
     }
   });
 }
-// ── PO TIMELINE & ANALYTICS ──────────────────────────────────────────────────
+// ── PO TIMELINE ──────────────────────────────────────────────────
 
 // ── FEATURE 1: STATUS TIMELINE ──────────────────────────────────────────────
 
@@ -4680,208 +4326,6 @@ function renderTimeline(entries) {
     `;
   });
 }
-
-// ── FEATURE 2: SUPPLIER DASHBOARD (redesigned) ──────────────────────────────
-
-const SD_AVATAR_PALETTES = [
-  {bg:'rgba(59,130,246,.25)',color:'#93c5fd'},
-  {bg:'rgba(34,197,94,.25)',color:'#86efac'},
-  {bg:'rgba(167,139,250,.25)',color:'#c4b5fd'},
-  {bg:'rgba(245,158,11,.25)',color:'#fde68a'},
-  {bg:'rgba(6,182,212,.25)',color:'#67e8f9'},
-  {bg:'rgba(249,115,22,.25)',color:'#fdba74'},
-];
-let _sdAllSuppliers = [];
-let _sdFilter = 'all';
-
-function sdAvatarInitials(name){
-  const parts = (name||'').trim().split(/\s+/);
-  if(parts.length >= 2) return (parts[0][0]+(parts[parts.length-1][0])).toUpperCase();
-  return (name||'??').slice(0,2).toUpperCase();
-}
-function sdBadgeClass(pct){ return pct==null?'none':pct>=90?'great':pct>=80?'good':pct>=65?'fair':'poor'; }
-function sdBadgeText(pct){ return pct==null?'No data':pct+'% On-Time'; }
-function sdShippedBadge(shipped, inTransit){
-  let out = '';
-  if(shipped > 0)   out += `<span class="sup-badge-pill shipped">🚢 ${shipped} Shipped</span>`;
-  if(inTransit > 0) out += `<span class="sup-badge-pill" style="background:rgba(249,115,22,.15);color:#f97316;border:1px solid rgba(249,115,22,.35)">🛳 ${inTransit} In Transit</span>`;
-  return out;
-}
-function sdFmtCNY(v){ v=Number(v||0); if(v>=1000000) return '¥'+(v/1000000).toFixed(2)+'M'; if(v>=1000) return '¥'+Math.round(v/1000)+'K'; return '¥'+v.toLocaleString(); }
-function sdFmtDate(d){ if(!d) return '—'; return new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
-
-async function showSuppliersTab() {
-  try {
-    const res  = await fetch(API_BASE + '/api/analytics/suppliers');
-    const data = await res.json();
-    _sdAllSuppliers = data || [];
-    sdRefresh();
-  } catch(e) {
-    console.error('Supplier dashboard load failed:', e);
-    document.getElementById('supplier-cards-container').innerHTML =
-      '<p style="color:var(--red);padding:20px">Failed to load supplier data.</p>';
-  }
-}
-
-function sdRefresh(){
-  const q = (document.getElementById('sdSearchBar')?.value||'').toLowerCase();
-  let data = _sdAllSuppliers.filter(s => {
-    const nm = (s.company||s.supplier_name||'').toLowerCase();
-    if(q && !nm.includes(q)) return false;
-    if(_sdFilter==='great') return s.on_time_pct!=null && s.on_time_pct>=90;
-    if(_sdFilter==='good')  return s.on_time_pct!=null && s.on_time_pct>=80;
-    if(_sdFilter==='poor')  return s.on_time_pct==null || s.on_time_pct<70;
-    return true;
-  });
-  const key = document.getElementById('sdSortSelect')?.value || 'ontime';
-  data.sort((a,b)=>{
-    if(key==='ontime')   return (b.on_time_pct??-1)-(a.on_time_pct??-1);
-    if(key==='value')    return (b.total_value_cny||0)-(a.total_value_cny||0);
-    if(key==='pos')      return (b.total_pos||0)-(a.total_pos||0);
-    if(key==='leadtime') return (a.avg_actual_days??9999)-(b.avg_actual_days??9999);
-    if(key==='name')     return (a.company||'').localeCompare(b.company||'');
-    return 0;
-  });
-  sdRenderKPIs(_sdAllSuppliers);
-  sdRenderCards(data);
-  sdRenderTopTable(_sdAllSuppliers);
-}
-
-function sdSetFilter(f, el){
-  _sdFilter = f;
-  document.querySelectorAll('#tab-suppliers-perf .filter-pill').forEach(p=>p.classList.remove('active'));
-  el.classList.add('active');
-  sdRefresh();
-}
-
-function sdRenderKPIs(data){
-  const n = data.length;
-  const totalPOs  = data.reduce((a,s)=>a+Number(s.total_pos||0),0);
-  const totalVal  = data.reduce((a,s)=>a+Number(s.total_value_cny||0),0);
-  const withPct   = data.filter(s=>s.on_time_pct!=null);
-  const avgOT     = withPct.length ? Math.round(withPct.reduce((a,s)=>a+s.on_time_pct,0)/withPct.length) : null;
-  const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
-  set('kpi-suppliers', n);
-  set('kpi-pos', totalPOs);
-  set('kpi-value', sdFmtCNY(totalVal));
-  set('kpi-ontime', avgOT!=null ? avgOT+'%' : '—');
-  set('kpi-sup-chg', n+' of '+n+' active');
-  set('kpi-po-chg', 'All orders');
-  set('kpi-val-chg', 'CNY total spend');
-  const otEl = document.getElementById('kpi-ot-chg');
-  if(otEl && avgOT!=null){
-    otEl.className = 'kpi-change '+(avgOT>=85?'pos':avgOT>=70?'neu':'neg');
-    otEl.textContent = avgOT>=85?'▲ On track':avgOT>=70?'~ Watch closely':'▼ Needs attention';
-  }
-}
-
-function sdRenderCards(data){
-  const container = document.getElementById('supplier-cards-container');
-  if(!container) return;
-  const countEl = document.getElementById('sdCardCount');
-  if(countEl) countEl.textContent = data.length+' supplier'+(data.length!==1?'s':'')+' shown';
-
-  if(!data.length){
-    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--text2)">
-      <div style="font-size:40px;opacity:.3;margin-bottom:14px">📦</div>
-      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px">No suppliers match</div>
-      <div style="font-size:12px">Try adjusting the filter or search query.</div>
-    </div>`;
-    return;
-  }
-
-  container.innerHTML = '';
-  data.forEach((s, idx) => {
-    const pal = SD_AVATAR_PALETTES[idx % SD_AVATAR_PALETTES.length];
-    const initials = sdAvatarInitials(s.company||s.supplier_name);
-    const pct = s.on_time_pct;
-    const bc  = sdBadgeClass(pct);
-    const shipped = s.shipped_pos || 0;
-    const inTransit = s.in_transit_pos || 0;
-    const spendData = s.monthly_spend || [];
-    const maxSpend  = Math.max(...spendData.map(m=>m.value||0), 1);
-
-    const bars = spendData.map(m => {
-      const h = Math.max(Math.round(((m.value||0)/maxSpend)*40), m.value>0?3:1);
-      const bg = m.value>0 ? 'linear-gradient(180deg,var(--accent2),rgba(59,130,246,.4))' : 'rgba(255,255,255,.06)';
-      return `<div class="spark-bar" data-tip="${esc(m.month)}: ${sdFmtCNY(m.value)}" style="height:${h}px;background:${bg};min-height:${m.value>0?3:1}px"></div>`;
-    }).join('');
-
-    const tags = (s.tags||[]).map(t=>`<span class="sup-tag">${esc(t)}</span>`).join('');
-
-    const card = document.createElement('article');
-    card.className = 'sup-card';
-    card.innerHTML = `
-      <div class="sup-card-top">
-        <div class="sup-card-top-row">
-          <div style="display:flex;align-items:flex-start;gap:12px;flex:1;min-width:0">
-            <div class="sup-avatar" style="background:${pal.bg};color:${pal.color}">${initials}</div>
-            <div style="flex:1;min-width:0">
-              <div class="sup-name" style="word-break:break-word">${esc(s.company||s.supplier_name||'')}</div>
-              <div class="sup-meta-line">${esc(s.name||'')}${s.country?' · '+esc(s.country):''}</div>
-              ${tags?`<div class="sup-tags-row" style="margin-top:7px">${tags}</div>`:''}
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
-            <span class="sup-badge-pill ${bc}">${sdBadgeText(pct)}</span>
-            ${sdShippedBadge(shipped, inTransit)}
-          </div>
-        </div>
-        ${pct!=null ? `
-        <div>
-          <div class="ontime-row">
-            <span class="ontime-lbl">On-Time Delivery</span>
-            <span class="ontime-num">${pct}%</span>
-          </div>
-          <div class="progress-track">
-            <div class="progress-fill ${bc}" style="width:${pct}%"></div>
-          </div>
-        </div>` : `<div style="font-size:10px;color:var(--text3);padding:6px 0 2px">No delivery data recorded yet</div>`}
-      </div>
-      <div class="sup-chips">
-        <div class="sup-chip"><div class="sup-chip-val">${Number(s.total_pos||0)}</div><div class="sup-chip-lbl">Total POs</div></div>
-        <div class="sup-chip"><div class="sup-chip-val">${Number(s.delivered_pos||0)}</div><div class="sup-chip-lbl">Delivered</div></div>
-        <div class="sup-chip"><div class="sup-chip-val">${sdFmtCNY(s.total_value_cny||0)}</div><div class="sup-chip-lbl">Spend</div></div>
-        <div class="sup-chip"><div class="sup-chip-val">${s.avg_actual_days!=null?s.avg_actual_days+'d':'—'}</div><div class="sup-chip-lbl">Avg Lead</div></div>
-      </div>
-      <div class="sup-card-body">
-        <div>
-          <div class="spark-lbl">Last 12 months spend (CNY)</div>
-          <div class="sparkline-wrap">${bars||'<div style="color:var(--text3);font-size:11px;align-self:center">No spend data</div>'}</div>
-        </div>
-      </div>
-      <div class="sup-card-footer">
-        <div class="sup-last">Last PO: <span>${sdFmtDate(s.last_po_date)}</span></div>
-        <button class="btn btn-ghost btn-sm" onclick="viewSupplierPOs('${s.supplier_id}')">View POs →</button>
-      </div>
-    `;
-    container.appendChild(card);
-  });
-}
-
-function sdRenderTopTable(data){
-  const tbody = document.getElementById('sdTopTableBody');
-  if(!tbody) return;
-  const sorted = [...data].sort((a,b)=>(b.total_value_cny||0)-(a.total_value_cny||0));
-  const maxVal = sorted[0] ? (sorted[0].total_value_cny||1) : 1;
-  tbody.innerHTML = sorted.map((s,i) => {
-    const rc = i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank-n';
-    const bc = sdBadgeClass(s.on_time_pct);
-    const bw = Math.round(((s.total_value_cny||0)/maxVal)*100);
-    return `<tr>
-      <td><span class="rank-num ${rc}">${i+1}</span></td>
-      <td><strong style="color:#fff;font-weight:800">${esc(s.company||s.supplier_name||'')}</strong><br>
-          <span style="font-size:10px;color:var(--text3)">${esc(s.name||'')}</span></td>
-      <td><span style="font-size:11px;color:var(--text2)">${esc(s.country||'—')}</span></td>
-      <td><div class="ibar-wrap"><div class="ibar-track"><div class="ibar-fill" style="width:${bw}%"></div></div><div class="ibar-lbl">${sdFmtCNY(s.total_value_cny||0)}</div></div></td>
-      <td style="font-weight:700">${Number(s.total_pos||0)}</td>
-      <td><span class="sup-badge-pill ${bc}">${sdBadgeText(s.on_time_pct)}</span>${sdShippedBadge(s.shipped_pos||0, s.in_transit_pos||0)}</td>
-      <td style="font-weight:700;color:var(--text2)">${s.avg_actual_days!=null?s.avg_actual_days+'d':'—'}</td>
-    </tr>`;
-  }).join('');
-}
-
-function renderSupplierCards(data){ _sdAllSuppliers = data||[]; sdRefresh(); }
 
 // ── Dashboard Functions ──────────────────────────────────────────────────────
 async function loadDashboard(){
@@ -5017,7 +4461,6 @@ table.qs-grid th .col-resize{position:absolute;right:0;top:0;bottom:0;width:5px;
 table.qs-grid th .col-resize:hover{background:var(--accent2);opacity:.5}
 table.qs-grid td{padding:0;border-bottom:1px solid var(--border);border-right:1px solid rgba(255,255,255,.04);vertical-align:middle;background:var(--bg)}
 table.qs-grid tr:hover td{background:rgba(59,130,246,.03)}
-table.qs-grid tr.qs-row-selected td{background:rgba(59,130,246,.06)}
 table.qs-grid td.td-num{text-align:center;color:var(--text3);font-size:11px;padding:0 4px;width:40px}
 table.qs-grid td input.qs-cell{width:100%;background:transparent;border:none;border-right:1px solid transparent;padding:8px 10px;color:var(--text);font-family:var(--font);font-size:12px;outline:none;transition:background .1s,border-color .1s;display:block}
 table.qs-grid td input.qs-cell:focus{background:rgba(59,130,246,.10);border-right-color:var(--accent2);box-shadow:inset 0 0 0 1px var(--accent2)}
@@ -5390,400 +4833,26 @@ table.qs-grid .qs-savings-row td.td-savings-sup{text-align:right}
 </div>
 
 
-<!-- Supplier Books: slide-in overlay background -->
-<div class="sb-overlay-bg" id="sbOverlayBg" onclick="sbCloseLedger()"></div>
-
-<!-- Supplier Books: Ledger slide-in panel -->
-<div class="sb-ledger-panel" id="sbLedgerPanel">
-  <div class="sb-ledger-head">
-    <div>
-      <div style="font-size:15px;font-weight:900;color:#fff" id="sbLedgerTitle">Ledger</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:2px" id="sbLedgerBalance">Closing Balance: —</div>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button class="req-edit btn btn-primary btn-sm" onclick="sbOpenEntry(window._sbCurrentSid)">+ Add Entry</button>
-      <a id="sbStmtPdfBtn" href="#" target="_blank" class="btn btn-ghost btn-sm">📄 Statement PDF</a>
-      <button class="sb-ledger-close" onclick="sbCloseLedger()">✕</button>
-    </div>
-  </div>
-  <div class="sb-ledger-body">
-    <div class="sb-sub-tabs">
-      <button class="sb-sub-tab active" id="sbSubAll" onclick="sbShowSubTab('all')">All Entries</button>
-      <button class="sb-sub-tab" id="sbSubOut" onclick="sbShowSubTab('outstanding')">Outstanding Bills</button>
-    </div>
-    <!-- All Entries -->
-    <div id="sbPanelAll">
-      <table class="ledger-tbl">
-        <thead><tr>
-          <th style="width:80px">Date</th>
-          <th style="width:90px">Type</th>
-          <th style="width:110px">Reference</th>
-          <th>Narration</th>
-          <th style="text-align:right;width:90px">Dr (CNY)</th>
-          <th style="text-align:right;width:90px">Cr (CNY)</th>
-          <th style="text-align:right;width:110px">Balance</th>
-          <th style="width:60px"></th>
-        </tr></thead>
-        <tbody id="sbLedgerTbody"></tbody>
-      </table>
-    </div>
-    <!-- Outstanding Ageing -->
-    <div id="sbPanelOut" style="display:none">
-      <div id="sbAgeingContent"></div>
-    </div>
-  </div>
-</div>
-
-<!-- Add Entry Modal -->
-<div class="overlay" id="sbEntryOverlay">
-  <div class="modal modal-lg">
-    <div class="modal-title">📒 Voucher Entry — Supplier Books</div>
-    <button class="modal-close" onclick="closeModal('sbEntryOverlay')">✕</button>
-    <input type="hidden" id="sbEntryEid">
-    <input type="hidden" id="sbEntrySid">
-    <div class="form-grid form-grid-2">
-      <div class="form-group">
-        <label>Supplier *</label>
-        <select id="sbEntrySup" onchange="sbEntrySupChanged()"></select>
-      </div>
-      <div class="form-group">
-        <label>Entry Type *</label>
-        <select id="sbEntryType" onchange="sbEntryTypeChanged()">
-          <option value="INVOICE">INVOICE — Purchase Invoice (CR)</option>
-          <option value="PAYMENT">PAYMENT — Payment Made (DR)</option>
-          <option value="DEBIT_NOTE">DEBIT NOTE — Return / Discount (DR)</option>
-          <option value="CREDIT_NOTE">CREDIT NOTE — Supplier Credit (CR)</option>
-          <option value="ADJUSTMENT">ADJUSTMENT</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Date *</label>
-        <input type="date" id="sbEntryDate">
-      </div>
-      <div class="form-group">
-        <label>Reference / PO No.</label>
-        <select id="sbEntryPO">
-          <option value="">— None —</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Amount (CNY / RMB ¥) *</label>
-        <input type="number" id="sbEntryAmt" step="0.01" min="0.01" placeholder="0.00" oninput="sbCalcINR()">
-      </div>
-      <div class="form-group">
-        <label>CNY → INR Rate</label>
-        <input type="number" id="sbEntryRate" step="0.01" value="11.5" oninput="sbCalcINR()">
-      </div>
-      <div class="form-group" style="grid-column:1/-1">
-        <label>INR Equivalent (auto)</label>
-        <input type="text" id="sbEntryINR" readonly style="background:rgba(34,197,94,.06);color:var(--accent)">
-      </div>
-      <div id="sbPaymentFields" style="display:none;grid-column:1/-1">
-        <div class="form-grid form-grid-2" style="margin-top:0">
-          <div class="form-group">
-            <label>Payment Mode</label>
-            <select id="sbEntryPayMode">
-              <option value="TT">TT (Telegraphic Transfer)</option>
-              <option value="LC">LC (Letter of Credit)</option>
-              <option value="SWIFT">SWIFT Transfer</option>
-              <option value="CASH">Cash</option>
-              <option value="OTHER">Other</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Bank Ref / UTR</label>
-            <input type="text" id="sbEntryBankRef" placeholder="UTR / TT Reference">
-          </div>
-        </div>
-      </div>
-      <div class="form-group" style="grid-column:1/-1">
-        <label>Narration / Description</label>
-        <input type="text" id="sbEntryDesc" placeholder="e.g. Payment against PO-2026-001 advance 30%">
-      </div>
-      <div class="form-group" style="grid-column:1/-1">
-        <label>Internal Notes</label>
-        <textarea id="sbEntryNotes" rows="2" placeholder="Optional internal remarks"></textarea>
-      </div>
-    </div>
-    <div style="margin-top:12px;padding:10px 14px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:8px;font-size:11px;color:var(--text2)" id="sbEntryDrCrHint">
-      CR entry — increases payable (we owe supplier more)
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('sbEntryOverlay')">Cancel</button>
-      <button class="req-edit btn btn-primary" onclick="sbSaveEntry()">Save Entry</button>
-    </div>
-  </div>
-</div>
-
 <script>
-// ═══════════════════════════════════════════════════════════════
-// SUPPLIER BOOKS — JavaScript
-// ═══════════════════════════════════════════════════════════════
-
-let _sbData = { suppliers: [], total_outstanding_usd: 0, total_outstanding_inr: 0, overdue_bills_count: 0, advance_paid_usd: 0 };
-let _sbCurrentSid = null;
-let _sbCurrentSubTab = 'all';
-let _sbAllSuppliers = [];
-
-function fmtUSD(v) { return '¥ ' + Number(v || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
-function fmtINR(v) { return '₹ ' + Number(v || 0).toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:0}); }
-
-// ── Dashboard ────────────────────────────────────────────────
-async function sbLoadDashboard() {
-  document.getElementById('sb-payables-tbody').innerHTML = '<tr class="empty-row"><td colspan="7">Loading…</td></tr>';
-  try {
-    const r = await fetch('/api/suppliers/summary/outstanding');
-    _sbData = await r.json();
-  } catch(e) { _sbData = { suppliers:[], total_outstanding_usd:0, total_outstanding_inr:0, overdue_bills_count:0, advance_paid_usd:0 }; }
-
-  document.getElementById('sb-kpi-outusd').textContent = fmtUSD(_sbData.total_outstanding_usd);
-  document.getElementById('sb-kpi-outinr').textContent = fmtINR(_sbData.total_outstanding_inr);
-  document.getElementById('sb-kpi-overdue').textContent = _sbData.overdue_bills_count;
-  document.getElementById('sb-kpi-advance').textContent = fmtUSD(_sbData.advance_paid_usd);
-  sbRenderTable();
-
-  // Also cache all suppliers for the entry dropdown
-  try {
-    const sr = await fetch('/api/suppliers');
-    _sbAllSuppliers = await sr.json();
-  } catch(e) { _sbAllSuppliers = []; }
+// ── Supplier Payment Terms (fields inside the supplier modal) ────────────────
+function sbResetPaymentTerms() {
+  const defaults = { sup_terms_type: 'NET30', sup_credit_days: '30', sup_advance_pct: '30',
+                     sup_balance_trigger: 'ON_INVOICE', sup_terms_notes: '' };
+  Object.entries(defaults).forEach(([id, v]) => { const el = document.getElementById(id); if (el) el.value = v; });
 }
-
-function sbRenderTable() {
-  const q = (document.getElementById('sbSearchBar')?.value || '').toLowerCase();
-  const rows = (_sbData.suppliers || []).filter(s =>
-    !q || (s.company||'').toLowerCase().includes(q) || (s.name||'').toLowerCase().includes(q)
-  );
-  const tb = document.getElementById('sb-payables-tbody');
-  if (!rows.length) { tb.innerHTML = '<tr class="empty-row"><td colspan="7">No payables found</td></tr>'; return; }
-  tb.innerHTML = rows.map(s => {
-    const days = s.oldest_overdue_days || 0;
-    let ageCls = 'age-ok', ageLbl = 'Current';
-    if (days > 90) { ageCls = 'age-crit'; ageLbl = '91+ Days'; }
-    else if (days > 60) { ageCls = 'age-alert'; ageLbl = '61–90 Days'; }
-    else if (days > 30) { ageCls = 'age-warn'; ageLbl = '31–60 Days'; }
-    const rowStyle = days > 90 ? 'background:rgba(239,68,68,.04)' : days > 30 ? 'background:rgba(249,115,22,.04)' : '';
-    return `<tr style="${rowStyle}">
-      <td><div style="font-weight:700;color:#fff">${s.company||s.name||'—'}</div><div style="font-size:10px;color:var(--text2)">${s.name||''}</div></td>
-      <td style="text-align:right">${fmtUSD(s.total_billed_usd)}</td>
-      <td style="text-align:right;color:var(--accent)">${fmtUSD(s.total_paid_usd)}</td>
-      <td style="text-align:right;font-weight:700;color:${days>90?'var(--red)':'#fff'}">${fmtUSD(s.outstanding_usd)}</td>
-      <td style="text-align:right;color:var(--text2)">${fmtINR(s.outstanding_inr)}</td>
-      <td><span class="age-chip ${ageCls}">${days > 0 ? days + ' days · ' + ageLbl : ageLbl}</span></td>
-      <td><button class="btn btn-ghost btn-xs" onclick="sbOpenLedger('${s.id}','${(s.company||s.name||'').replace(/'/g,"\\'")}')">View Ledger</button></td>
-    </tr>`;
-  }).join('');
-}
-
-// ── Ledger Panel ─────────────────────────────────────────────
-async function sbOpenLedger(sid, name) {
-  _sbCurrentSid = sid;
-  document.getElementById('sbLedgerTitle').textContent = '📒 ' + name;
-  document.getElementById('sbLedgerBalance').textContent = 'Loading…';
-  document.getElementById('sbStmtPdfBtn').href = '/api/suppliers/' + sid + '/ledger/pdf';
-  document.getElementById('sbOverlayBg').classList.add('open');
-  document.getElementById('sbLedgerPanel').classList.add('open');
-  await sbLoadLedger(sid);
-  sbShowSubTab('all');
-}
-
-function sbCloseLedger() {
-  document.getElementById('sbLedgerPanel').classList.remove('open');
-  document.getElementById('sbOverlayBg').classList.remove('open');
-}
-
-async function sbLoadLedger(sid) {
-  try {
-    const r = await fetch('/api/suppliers/' + sid + '/ledger');
-    const data = await r.json();
-    const bal = data.closing_balance || 0;
-    const sfx = data.balance_suffix || 'Cr';
-    document.getElementById('sbLedgerBalance').textContent =
-      'Closing Balance: ' + fmtUSD(Math.abs(bal)) + ' CNY · ' + sfx;
-    document.getElementById('sbLedgerTbody').innerHTML = (data.entries||[]).map(e => {
-      const trCls = {INVOICE:'ldr-inv',PAYMENT:'ldr-pay',DEBIT_NOTE:'ldr-dn',CREDIT_NOTE:'ldr-cn'}[e.entry_type]||'';
-      const dr = e.dr_cr === 'DR' ? fmtUSD(e.amount_usd) : '';
-      const cr = e.dr_cr === 'CR' ? fmtUSD(e.amount_usd) : '';
-      const rb = e.running_balance || 0;
-      const rbSfx = e.balance_suffix || 'Cr';
-      return `<tr class="${trCls}">
-        <td>${e.entry_date||''}</td>
-        <td><span class="ldg-type ${e.entry_type}">${e.entry_type}</span></td>
-        <td style="font-size:10px">${e.ref_number||''}</td>
-        <td style="font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(e.description||'').replace(/"/g,'')}">${e.description||''}</td>
-        <td style="text-align:right;color:var(--accent);font-weight:600">${dr}</td>
-        <td style="text-align:right;color:var(--accent2);font-weight:600">${cr}</td>
-        <td style="text-align:right;font-weight:700">${fmtUSD(Math.abs(rb))} <span style="font-size:9px;color:var(--text2)">${rbSfx}</span></td>
-        <td><button class="btn btn-ghost btn-xs" style="padding:2px 6px;font-size:9px" onclick="sbDeleteEntry('${sid}','${e.id}')">✕</button></td>
-      </tr>`;
-    }).join('') || '<tr class="empty-row"><td colspan="8">No entries yet</td></tr>';
-  } catch(err) { console.error(err); }
-}
-
-async function sbLoadOutstanding(sid) {
-  try {
-    const r = await fetch('/api/suppliers/' + sid + '/outstanding');
-    const data = await r.json();
-    const buckets = data.buckets || {};
-    const bucketDefs = [
-      {key:'91_plus', label:'91+ Days (Critical)', cls:'age-crit'},
-      {key:'61_90', label:'61–90 Days', cls:'age-alert'},
-      {key:'31_60', label:'31–60 Days', cls:'age-warn'},
-      {key:'0_30', label:'0–30 Days (Current)', cls:'age-ok'},
-    ];
-    let html = '';
-    bucketDefs.forEach(bd => {
-      const items = buckets[bd.key] || [];
-      if (!items.length) return;
-      html += `<div style="margin-bottom:16px">
-        <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">
-          <span class="age-chip ${bd.cls}">${bd.label}</span>
-        </div>
-        <table class="ledger-tbl"><thead><tr>
-          <th>Bill Date</th><th>Due Date</th><th>Reference</th>
-          <th style="text-align:right">Pending (CNY)</th><th>Days</th>
-        </tr></thead><tbody>`;
-      items.forEach(it => {
-        html += `<tr><td>${it.bill_date||''}</td><td>${it.due_date||''}</td>
-          <td>${it.ref||''}</td>
-          <td style="text-align:right;font-weight:700;color:var(--red)">${fmtUSD(it.pending_usd)}</td>
-          <td><span class="age-chip ${bd.cls}">${it.days_overdue}d</span></td></tr>`;
-      });
-      html += '</tbody></table></div>';
-    });
-    document.getElementById('sbAgeingContent').innerHTML = html || '<p style="color:var(--text2);padding:20px">No outstanding bills.</p>';
-  } catch(e) { console.error(e); }
-}
-
-function sbShowSubTab(tab) {
-  _sbCurrentSubTab = tab;
-  document.getElementById('sbSubAll').classList.toggle('active', tab === 'all');
-  document.getElementById('sbSubOut').classList.toggle('active', tab === 'outstanding');
-  document.getElementById('sbPanelAll').style.display = tab === 'all' ? '' : 'none';
-  document.getElementById('sbPanelOut').style.display = tab === 'outstanding' ? '' : 'none';
-  if (tab === 'outstanding' && _sbCurrentSid) sbLoadOutstanding(_sbCurrentSid);
-}
-
-async function sbDeleteEntry(sid, eid) {
-  if (!confirm('Delete this ledger entry? (soft-delete, data preserved)')) return;
-  await fetch('/api/suppliers/' + sid + '/ledger/' + eid, { method: 'DELETE' });
-  await sbLoadLedger(sid);
-  sbLoadDashboard();
-}
-
-// ── Add Entry Modal ──────────────────────────────────────────
-const SB_DR_TYPES = new Set(['PAYMENT','DEBIT_NOTE','ADJUSTMENT']);
-const SB_CR_TYPES = new Set(['INVOICE','CREDIT_NOTE']);
-
-function sbOpenEntry(sid) {
-  // Reset form
-  document.getElementById('sbEntryEid').value = '';
-  document.getElementById('sbEntrySid').value = sid || '';
-  document.getElementById('sbEntryDate').value = new Date().toISOString().split('T')[0];
-  document.getElementById('sbEntryAmt').value = '';
-  document.getElementById('sbEntryINR').value = '';
-  document.getElementById('sbEntryDesc').value = '';
-  document.getElementById('sbEntryNotes').value = '';
-  document.getElementById('sbEntryBankRef').value = '';
-
-  // Populate supplier dropdown
-  const supSel = document.getElementById('sbEntrySup');
-  supSel.innerHTML = '<option value="">— Select Supplier —</option>' +
-    _sbAllSuppliers.map(s => `<option value="${s.id}" ${s.id===sid?'selected':''}>${s.company||s.name||s.id}</option>`).join('');
-  if (sid) supSel.value = sid;
-
-  // Load PO dropdown for selected supplier
-  if (sid) sbEntrySupChanged();
-
-  // Set default rate from settings (use CNY→INR rate)
-  fetch('/api/settings').then(r=>r.json()).then(st => {
-    const rate = st.default_rmb_rate || st.lc_rmb_rate || 11.5;
-    document.getElementById('sbEntryRate').value = rate;
-  }).catch(()=>{});
-
-  sbEntryTypeChanged();
-  document.getElementById('sbEntryOverlay').classList.add('open');
-}
-
-async function sbEntrySupChanged() {
-  const sid = document.getElementById('sbEntrySup').value;
-  const poSel = document.getElementById('sbEntryPO');
-  poSel.innerHTML = '<option value="">— None —</option>';
-  if (!sid) return;
-  try {
-    const r = await fetch('/api/po?supplier_id=' + sid);
-    const data = await r.json();
-    const pos = data.pos || data || [];
-    pos.forEach(p => {
-      poSel.innerHTML += `<option value="${p.id}">${p.po_number||p.id} — ${p.status}</option>`;
-    });
-  } catch(e) {}
-}
-
-function sbEntryTypeChanged() {
-  const t = document.getElementById('sbEntryType').value;
-  const isPayment = t === 'PAYMENT';
-  document.getElementById('sbPaymentFields').style.display = isPayment ? '' : 'none';
-  const hint = SB_DR_TYPES.has(t)
-    ? 'DR entry — decreases payable (we paid or reduced amount owed)'
-    : 'CR entry — increases payable (we owe supplier more)';
-  document.getElementById('sbEntryDrCrHint').textContent = hint;
-}
-
-function sbCalcINR() {
-  const amt = parseFloat(document.getElementById('sbEntryAmt').value) || 0;
-  const rate = parseFloat(document.getElementById('sbEntryRate').value) || 11.5;
-  const inr = amt * rate;
-  document.getElementById('sbEntryINR').value = inr > 0 ? '₹ ' + inr.toLocaleString('en-IN', {minimumFractionDigits:2,maximumFractionDigits:2}) : '';
-}
-
-async function sbSaveEntry() {
-  const sid = document.getElementById('sbEntrySup').value;
-  const entryType = document.getElementById('sbEntryType').value;
-  const amt = parseFloat(document.getElementById('sbEntryAmt').value);
-  if (!sid) { toast('Please select a supplier', 'err'); return; }
-  if (!amt || amt <= 0) { toast('Amount must be positive (CNY)', 'err'); return; }
-  const dr_cr = SB_DR_TYPES.has(entryType) ? 'DR' : 'CR';
-  const payload = {
-    entry_type: entryType, dr_cr,
-    entry_date: document.getElementById('sbEntryDate').value,
-    amount_cny: amt,
-    cny_rate: parseFloat(document.getElementById('sbEntryRate').value) || 11.5,
-    description: document.getElementById('sbEntryDesc').value,
-    notes: document.getElementById('sbEntryNotes').value,
-    ref_number: document.getElementById('sbEntryPO').value,
-    po_id: document.getElementById('sbEntryPO').value || null,
-    payment_mode: document.getElementById('sbEntryPayMode')?.value || '',
-    bank_ref: document.getElementById('sbEntryBankRef')?.value || '',
-  };
-  try {
-    const r = await fetch('/api/suppliers/' + sid + '/ledger', {
-      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
-    });
-    if (!r.ok) { const e = await r.json(); toast(e.error || 'Error saving entry', 'err'); return; }
-    toast('Entry saved successfully', 'ok');
-    closeModal('sbEntryOverlay');
-    if (_sbCurrentSid === sid) await sbLoadLedger(sid);
-    sbLoadDashboard();
-  } catch(err) { toast('Network error: ' + err.message, 'err'); }
-}
-
-// ── Supplier Payment Terms: hook into saveSupplier ───────────
-const _origSaveSupplier = typeof saveSupplier === 'function' ? saveSupplier : null;
 
 async function sbSavePaymentTerms(sid) {
+  const num = (id, fallback) => { const v = parseFloat(document.getElementById(id)?.value); return Number.isFinite(v) ? v : fallback; };
   const payload = {
     terms_type: document.getElementById('sup_terms_type')?.value || 'NET30',
-    advance_pct: parseFloat(document.getElementById('sup_advance_pct')?.value) || 30,
+    advance_pct: num('sup_advance_pct', 30),   // 0% advance is valid
     balance_trigger: document.getElementById('sup_balance_trigger')?.value || 'ON_INVOICE',
-    credit_days: parseInt(document.getElementById('sup_credit_days')?.value) || 0,
+    credit_days: Math.trunc(num('sup_credit_days', 0)),
     notes: document.getElementById('sup_terms_notes')?.value || '',
   };
   try {
-    await fetch('/api/suppliers/' + sid + '/payment-terms', {
-      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
-    });
-  } catch(e) { console.error('Payment terms save error:', e); }
+    await api(`/api/suppliers/${sid}/payment-terms`, 'POST', payload);
+  } catch(e) { toast('Supplier saved, but payment terms failed: ' + e.message, 'err'); }
 }
 
 async function sbLoadPaymentTerms(sid) {
@@ -5799,41 +4868,6 @@ async function sbLoadPaymentTerms(sid) {
     setV('sup_terms_notes', t.notes);
   } catch(e) {}
 }
-
-// Monkey-patch openSupplierModal to load payment terms when editing
-document.addEventListener('DOMContentLoaded', () => {
-  const origOpen = window.openSupplierModal;
-  if (typeof origOpen === 'function') {
-    window.openSupplierModal = function(sup) {
-      origOpen(sup);
-      if (sup && sup.id) {
-        setTimeout(() => sbLoadPaymentTerms(sup.id), 100);
-      } else {
-        // Reset terms fields for new supplier
-        ['sup_terms_type','sup_credit_days','sup_advance_pct','sup_balance_trigger','sup_terms_notes']
-          .forEach(id => { const el = document.getElementById(id); if(el) el.value = el.defaultValue || ''; });
-        const tt = document.getElementById('sup_terms_type');
-        if (tt) tt.value = 'NET30';
-        const cd = document.getElementById('sup_credit_days');
-        if (cd) cd.value = '30';
-        const ap = document.getElementById('sup_advance_pct');
-        if (ap) ap.value = '30';
-      }
-    };
-  }
-
-  // Monkey-patch saveSupplier to also save payment terms
-  const origSave = window.saveSupplier;
-  if (typeof origSave === 'function') {
-    window.saveSupplier = async function() {
-      // Get supplier ID before saving (for edit) or after (for new)
-      const existingId = document.getElementById('supplierId')?.value;
-      await origSave.call(this);
-      // After save, get the ID (may be new or existing)
-      const newId = document.getElementById('supplierId')?.value || existingId;
-    };
-  }
-});
 
 document.addEventListener('DOMContentLoaded', () => {
   // Navigation Handler for Unified ERP Sidebar

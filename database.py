@@ -890,8 +890,9 @@ def init_default_rbac(conn):
     # 3. Define Default Admin User
     cursor.execute("SELECT id FROM users WHERE username = 'admin'")
     if not cursor.fetchone():
-        # Hash for 'admin' (using sha256 for simplicity since Werkzeug isn't guaranteed here)
-        hashed_pw = hashlib.sha256("admin".encode()).hexdigest()
+        # Salted hash (Werkzeug ships with Flask). Change this password after first login.
+        from werkzeug.security import generate_password_hash
+        hashed_pw = generate_password_hash("admin", method="pbkdf2:sha256")
         cursor.execute(
             "INSERT INTO users (id, username, password_hash, role_id) VALUES (?, 'admin', ?, ?)",
             (str(uuid.uuid4()), hashed_pw, admin_role_id)

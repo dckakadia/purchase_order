@@ -1,10 +1,12 @@
+import getpass
+import os
 import paramiko
 
 def run_ssh_command():
     host = '116.74.77.22'
     port = 22
     username = 'dckakadia'
-    password = 'Devin@404404'
+    password = os.environ.get('DEPLOY_SSH_PASSWORD') or getpass.getpass('SSH password: ')
     
     command = "cd purchase_order && git pull origin main && sudo -S pm2 restart purchase_order"
 

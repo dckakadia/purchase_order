@@ -74,7 +74,6 @@ The two endpoints that do this correctly after the 2026-06-26 fix:
 - `POST /api/po/<pid>/payments/<slot>` → upload PDF (1 or 2)
 - `POST /api/po/<pid>/payments/<slot>/confirm` → lock permanently
 - `GET /api/po/<pid>/payments/<slot>/download` → download
-- Old `/api/po/<pid>/payment` endpoints → alias to slot 1 (legacy compat)
 
 ### Migration
 - On startup `database.py` runs `INSERT OR IGNORE` from `po_payments` → `po_payment_proofs` slot 1

@@ -6,13 +6,15 @@ Port: 5005
 
 import csv
 import os, json, uuid, shutil, base64, re, html, urllib.error, urllib.request, mimetypes, sqlite3, time, traceback, zipfile
+import secrets, subprocess, threading
 from datetime import date, datetime
 from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for, flash, abort
+from werkzeug.security import generate_password_hash, check_password_hash
 import io
 import hashlib
 from functools import wraps
 try:
-    from weasyprint import HTML, CSS
+    from weasyprint import HTML
     WEASYPRINT_AVAILABLE = True
 except (ImportError, OSError):
     WEASYPRINT_AVAILABLE = False
@@ -22,7 +24,29 @@ from database import get_db, get_connection, init_db, init_default_settings, ini
 
 app = Flask(__name__, template_folder="templates")
 app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20 MB
-app.secret_key = "dev_secret_key_replace_in_production_123"
+
+
+def _load_secret_key():
+    """Session signing key: FLASK_SECRET_KEY env var, else a random key
+    persisted in data/po/.secret_key so all gunicorn workers and restarts
+    share it (sessions survive restarts, can't be forged from source code)."""
+    env_key = os.environ.get("FLASK_SECRET_KEY")
+    if env_key:
+        return env_key
+    key_path = os.path.join(os.path.dirname(__file__), "data", "po", ".secret_key")
+    os.makedirs(os.path.dirname(key_path), exist_ok=True)
+    try:
+        # O_EXCL: only one worker wins the race to create the file
+        fd = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(secrets.token_hex(32))
+    except FileExistsError:
+        pass
+    with open(key_path) as f:
+        return f.read().strip()
+
+
+app.secret_key = _load_secret_key()
 
 # Initialize database on startup
 init_db()
@@ -45,6 +69,40 @@ GEMINI_URL = (
 
 
 # ── AUTHENTICATION & RBAC ───────────────────────────────────────────────────
+
+# Endpoints reachable without a session. Everything else requires login;
+# write routes additionally carry @require_permission.
+_PUBLIC_ENDPOINTS = {"login", "logout", "static"}
+
+
+@app.before_request
+def _require_login():
+    """Block unauthenticated access to every route, including GET APIs that
+    have no @require_permission decorator (ledgers, attachments, PDFs...)."""
+    if request.endpoint in _PUBLIC_ENDPOINTS or 'user_id' in session:
+        return None
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Authentication required"}), 401
+    return redirect(url_for("login", next=request.url))
+
+
+def hash_password(password):
+    # pbkdf2 explicitly: Werkzeug's default (scrypt) is missing on Python
+    # builds linked against LibreSSL (e.g. macOS system Python).
+    return generate_password_hash(password, method="pbkdf2:sha256")
+
+
+def verify_password(stored_hash, password):
+    """Check a password against a stored hash.
+    Returns (ok, needs_upgrade). Legacy rows hold an unsalted SHA-256 hex
+    digest; those still verify but are flagged for re-hashing."""
+    if not stored_hash:
+        return False, False
+    if re.fullmatch(r"[0-9a-f]{64}", stored_hash):
+        legacy = hashlib.sha256(password.encode()).hexdigest()
+        return secrets.compare_digest(legacy, stored_hash), True
+    return check_password_hash(stored_hash, password), False
+
 
 @app.context_processor
 def inject_permissions():
@@ -102,14 +160,19 @@ def login():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         
-        hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-        
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id FROM users WHERE username = ? AND password_hash = ?", (username, hashed_pw))
-            user = cursor.fetchone()
-            
+            cursor.execute("SELECT id, password_hash FROM users WHERE username = ?", (username,))
+            row = cursor.fetchone()
+            ok, needs_upgrade = verify_password(row['password_hash'], password) if row else (False, False)
+            user = row if ok else None
+
             if user:
+                if needs_upgrade:
+                    # Transparently migrate legacy SHA-256 hash to a salted hash
+                    cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                                   (hash_password(password), user['id']))
+                session.clear()
                 session['user_id'] = user['id']
                 
                 # Smart redirect if they are heading to index but don't have permission
@@ -125,8 +188,8 @@ def login():
                     perms = [r['page_identifier'] for r in cursor.fetchall()]
                     
                     if "po_dashboard" not in perms:
-                        if "supplier_book" in perms: return redirect("/supplier-book")
-                        if "customer_book" in perms: return redirect("/customer-book")
+                        if "supplier_books" in perms: return redirect("/supplier-book")
+                        if "customer_books" in perms: return redirect("/customer-book")
                         if "forwarder_dashboard" in perms: return redirect("/forwarder-dashboard")
                         if "admin_rbac" in perms: return redirect("/admin/rbac")
                 
@@ -433,8 +496,6 @@ def _recalc_po_status(cursor, po_id):
         print(f"Error recalculating PO status: {e}")
 
 
-# Keep old name as alias so any missed callsite still works
-_update_po_partial_status = _recalc_po_status
 
 
 # ── SUPPLIER BOOKS HELPER FUNCTIONS ───────────────────────────────────────────
@@ -1251,36 +1312,6 @@ def add_ledger_entry(sid):
         return jsonify(row), 201
 
 
-@app.route("/api/suppliers/<sid>/ledger/<eid>", methods=["PUT"])
-@require_permission("supplier_edit")
-def update_ledger_entry(sid, eid):
-    """Edit narration, notes, bank_ref of an existing entry (amounts locked)."""
-    req = request.get_json(silent=True) or {}
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM supplier_ledger_entries WHERE id = ? AND supplier_id = ? AND deleted_at IS NULL",
-            (eid, sid)
-        )
-        row = cursor.fetchone()
-        if not row:
-            return jsonify({"error": "Entry not found"}), 404
-        cursor.execute("""
-            UPDATE supplier_ledger_entries
-            SET description = ?, notes = ?, bank_ref = ?, ref_number = ?
-            WHERE id = ?
-        """, (
-            req.get("description", row["description"]),
-            req.get("notes", row["notes"]),
-            req.get("bank_ref", row["bank_ref"]),
-            req.get("ref_number", row["ref_number"]),
-            eid,
-        ))
-        cursor.execute("SELECT * FROM supplier_ledger_entries WHERE id = ?", (eid,))
-        updated = dict(cursor.fetchone())
-    return jsonify(updated)
-
-
 @app.route("/api/suppliers/<sid>/ledger/<eid>", methods=["DELETE"])
 @require_permission("supplier_delete")
 def delete_ledger_entry(sid, eid):
@@ -1704,7 +1735,6 @@ def supplier_ledger_excel(sid):
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-        from openpyxl.utils import get_column_letter
     except ImportError:
         return jsonify({"error": "openpyxl not installed"}), 500
     
@@ -1849,7 +1879,7 @@ def supplier_ageing_excel(sid):
         "91_plus": "fecaca"
     }
     
-    for bucket_key, bucket_name in [("0_30", "Not Due"), ("31_60", "1-30 Days"), 
+    for bucket_key, _label in [("0_30", "Not Due"), ("31_60", "1-30 Days"), 
                                      ("61_90", "31-60 Days"), ("91_plus", "61-90 Days")]:
         items = buckets.get(bucket_key, [])
         for item in items:
@@ -2569,139 +2599,6 @@ def get_po_timeline(pid):
     return jsonify({'timeline': entries})
 
 
-
-@app.route("/api/analytics/suppliers", methods=["GET"])
-def supplier_analytics():
-    """
-    Aggregate PO data per supplier:
-    - Total PO count, total order value (sum of line items)
-    - Average promised lead time (lead_time_days column)
-    - Actual lead time (days from po_date to Received status log entry)
-    - On-time delivery % (actual lead time <= promised lead time, for Received POs)
-    - Total value over last 12 months (month-by-month)
-    """
-    try:
-        with get_db() as conn:
-            cursor = conn.cursor()
-
-            # ── Per-supplier PO totals ────────────────────────────────────────
-            cursor.execute("""
-                SELECT
-                    s.id            AS supplier_id,
-                    s.name          AS supplier_name,
-                    s.company       AS company,
-                    COUNT(po.id)    AS total_pos,
-                    SUM(CASE WHEN po.status NOT IN ('Cancelled') THEN 1 ELSE 0 END)
-                                    AS active_pos,
-                    SUM(CASE WHEN po.status IN ('Part Load','Shipped') THEN 1 ELSE 0 END)
-                                    AS shipped_pos,
-                    SUM(CASE WHEN po.status = 'In Transit' THEN 1 ELSE 0 END)
-                                    AS in_transit_pos,
-                    AVG(CASE WHEN po.lead_time_days > 0 THEN po.lead_time_days END)
-                                    AS avg_promised_days,
-                    SUM(COALESCE(pv.value_cny, 0))
-                                    AS total_value_cny
-                FROM suppliers s
-                LEFT JOIN purchase_orders po
-                    ON po.supplier_id = s.id AND po.deleted_at IS NULL
-                LEFT JOIN (
-                    SELECT po_id, SUM(qty * unit_price) AS value_cny
-                    FROM po_items GROUP BY po_id
-                ) pv ON pv.po_id = po.id
-                GROUP BY s.id
-                ORDER BY total_value_cny DESC
-            """)
-            supplier_rows = [dict(r) for r in cursor.fetchall()]
-
-            # ── On-time delivery calculation (using status log) ───────────────
-            cursor.execute("""
-                SELECT
-                    po.supplier_id,
-                    po.po_date,
-                    po.lead_time_days,
-                    COALESCE(rlog.received_at, po.updated_at) AS received_at
-                FROM purchase_orders po
-                LEFT JOIN (
-                    SELECT po_id, MIN(changed_at) as received_at
-                    FROM po_status_log
-                    WHERE to_status = 'Delivered'
-                    GROUP BY po_id
-                ) rlog ON rlog.po_id = po.id
-                WHERE po.deleted_at IS NULL AND po.status = 'Delivered'
-            """)
-            delivery_rows = cursor.fetchall()
-
-            # Compute per-supplier on-time stats
-            from datetime import datetime
-            delivery_stats = {}  # supplier_id -> {on_time: int, total: int, actual_days_sum: int}
-            for dr in delivery_rows:
-                sid       = dr["supplier_id"]
-                po_date   = dr["po_date"]
-                promised  = dr["lead_time_days"]
-                recv_str  = dr["received_at"]
-                if not po_date or not recv_str:
-                    continue
-                try:
-                    d0      = datetime.strptime(po_date[:10], "%Y-%m-%d")
-                    d1      = datetime.strptime(recv_str[:10], "%Y-%m-%d")
-                    actual  = (d1 - d0).days
-                except ValueError:
-                    continue
-                if sid not in delivery_stats:
-                    delivery_stats[sid] = {"on_time": 0, "total": 0, "actual_days_sum": 0}
-                delivery_stats[sid]["total"]           += 1
-                delivery_stats[sid]["actual_days_sum"] += actual
-                if actual <= promised:
-                    delivery_stats[sid]["on_time"] += 1
-
-            # ── Monthly spend per supplier (last 12 months) ───────────────────
-            cursor.execute("""
-                SELECT
-                    po.supplier_id,
-                    substr(po.po_date, 1, 7) AS ym,
-                    SUM(COALESCE(pv.value_cny, 0)) AS monthly_value
-                FROM purchase_orders po
-                LEFT JOIN (
-                    SELECT po_id, SUM(qty * unit_price) AS value_cny
-                    FROM po_items GROUP BY po_id
-                ) pv ON pv.po_id = po.id
-                WHERE po.deleted_at IS NULL
-                  AND po.po_date >= date('now', '-12 months')
-                GROUP BY po.supplier_id, ym
-                ORDER BY ym ASC
-            """)
-            monthly_raw = cursor.fetchall()
-            monthly_by_supplier = {}
-            for mr in monthly_raw:
-                sid = mr["supplier_id"]
-                monthly_by_supplier.setdefault(sid, []).append({
-                    "month": mr["ym"], "value": mr["monthly_value"] or 0
-                })
-
-            # ── Merge everything ──────────────────────────────────────────────
-            result = []
-            for s in supplier_rows:
-                sid   = s["supplier_id"]
-                stats = delivery_stats.get(sid, {})
-                total_d = stats.get("total", 0)
-                on_t    = stats.get("on_time", 0)
-                actual_days_sum = stats.get("actual_days_sum", 0)
-                result.append({
-                    **s,
-                    "avg_actual_days":   round(actual_days_sum / total_d, 1) if total_d else None,
-                    "on_time_pct":       round(on_t / total_d * 100, 1)              if total_d else None,
-                    "delivered_pos":     total_d,
-                    "shipped_pos":       s.get("shipped_pos", 0) or 0,
-                    "in_transit_pos":    s.get("in_transit_pos", 0) or 0,
-                    "monthly_spend":     monthly_by_supplier.get(sid, []),
-                })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
-    return jsonify(result)
-
-
 @app.route("/api/po/deleted", methods=["GET"])
 def list_deleted_pos():
     """List soft-deleted purchase orders"""
@@ -2861,6 +2758,7 @@ def next_purchase_invoice_number():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/api/export", methods=["GET"])
+@require_permission("admin_rbac")
 def export_data():
     """
     📤 EXPORT ENDPOINT
@@ -2984,7 +2882,7 @@ def export_data():
         
         # Add physical attachments
         if os.path.exists(ATTACH_DIR):
-            for root, dirs, files in os.walk(ATTACH_DIR):
+            for root, _dirs, files in os.walk(ATTACH_DIR):
                 for file in files:
                     file_path = os.path.join(root, file)
                     # Create relative path starting with 'attachments/'
@@ -4180,7 +4078,6 @@ def export_quotation_excel(qid):
             return "Quotation not found", 404
 
     q = _quotation_to_dict(row)
-    cur = q.get("currency", "CNY")
     line_items = q.get("line_items", [])
 
     # Get all unique supplier names
@@ -4263,7 +4160,6 @@ def po_report(pid):
     cfg = settings
 
     currency = po.get("currency", "USD")
-    cur_sym = "¥" if currency == "CNY" else "$"
 
     lines = po.get("line_items", [])
     total = sum(_safe_float(li.get("qty", 0)) * _safe_float(li.get("unit_price", 0)) for li in lines)
@@ -5201,45 +5097,6 @@ def download_payment_slot(pid, slot):
     return send_file(fp, download_name=row["filename"], mimetype="application/pdf")
 
 
-# ── Legacy single-slot compat (delegates to slot 1) ──────────────────────────
-
-@app.route("/api/po/<pid>/payment", methods=["GET"])
-def get_payment_status(pid):
-    with get_db() as conn:
-        _migrate_payment_json(pid, conn)
-        _migrate_legacy_po_payments(pid, conn)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT filename, original, uploaded_at, confirmed, confirmed_at "
-            "FROM po_payment_proofs WHERE po_id = ? AND slot_num = 1",
-            (pid,)
-        )
-        row = cursor.fetchone()
-    if not row:
-        return jsonify({})
-    meta = dict(row)
-    meta["confirmed"] = bool(meta["confirmed"])
-    fp = os.path.join(_payment_dir(pid), meta["filename"])
-    meta["size"] = os.path.getsize(fp) if os.path.exists(fp) else 0
-    return jsonify(meta)
-
-
-@app.route("/api/po/<pid>/payment", methods=["POST"])
-@require_permission("po_edit")
-def upload_payment_proof(pid):
-    return upload_payment_slot(pid, 1)
-
-
-@app.route("/api/po/<pid>/payment/confirm", methods=["POST"])
-@require_permission("po_edit")
-def confirm_payment_proof(pid):
-    return confirm_payment_slot(pid, 1)
-
-
-@app.route("/api/po/<pid>/payment/download", methods=["GET"])
-def download_payment_proof(pid):
-    return download_payment_slot(pid, 1)
-
 @app.route("/api/scan-invoice", methods=["POST"])
 @require_permission("po_edit")
 def scan_invoice():
@@ -6066,7 +5923,7 @@ def link_po(sid):
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (str(uuid.uuid4()), sid, po_id, qty_shipped, part_no, items_json))
 
-            _update_po_partial_status(cursor, po_id)
+            _recalc_po_status(cursor, po_id)
 
         with get_db() as conn:
             cursor = conn.cursor()
@@ -6095,7 +5952,7 @@ def unlink_po(sid):
             "DELETE FROM shipment_po_link WHERE shipment_id=? AND po_id=?",
             (sid, po_id)
         )
-        _update_po_partial_status(cursor, po_id)
+        _recalc_po_status(cursor, po_id)
     return jsonify({"ok": True})
 
 
@@ -6120,7 +5977,7 @@ def update_link_po(sid):
             UPDATE shipment_po_link SET qty_shipped = ?, items_json = ?
             WHERE shipment_id = ? AND po_id = ?
         """, (qty_shipped, items_json, sid, po_id))
-        _update_po_partial_status(cursor, po_id)
+        _recalc_po_status(cursor, po_id)
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -6137,8 +5994,6 @@ def get_dashboard_stats():
     # today+7
     from datetime import timedelta
     week_end = str(date.today() + timedelta(days=7))
-    # first day of current month
-    month_start = date.today().replace(day=1).isoformat()
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -7620,9 +7475,6 @@ def get_all_suppliers_outstanding():
         cursor.execute("SELECT id, name, company FROM suppliers")
         suppliers = [dict(r) for r in cursor.fetchall()]
 
-        cursor.execute("SELECT value FROM settings WHERE key = 'default_rmb_rate'")
-        r2 = cursor.fetchone()
-        
         parties_list = []
         totals = { "total_due": 0.0, "not_due": 0.0, "days_1_30": 0.0, "days_31_60": 0.0, "days_61_90": 0.0, "days_90_plus": 0.0 }
         
@@ -7789,9 +7641,6 @@ def get_supplier_summary_v2():
         cursor.execute("SELECT id, name, company FROM suppliers")
         suppliers = [dict(r) for r in cursor.fetchall()]
 
-        cursor.execute("SELECT value FROM settings WHERE key = 'default_rmb_rate'")
-        r2 = cursor.fetchone()
-        
         cursor.execute("SELECT value FROM settings WHERE key = 'default_rmb_rate'")
         rate_row = cursor.fetchone()
         cny_rate = _safe_float(rate_row['value'] if rate_row else None, 11.5)
@@ -8054,7 +7903,7 @@ def save_user():
         exists = cursor.fetchone()
         
         if password:
-            hashed = hashlib.sha256(password.encode()).hexdigest()
+            hashed = hash_password(password)
             if exists:
                 cursor.execute("UPDATE users SET username = ?, password_hash = ?, role_id = ? WHERE id = ?", (username, hashed, role_id, user_id))
             else:
@@ -8068,11 +7917,6 @@ def save_user():
     return jsonify({"success": True, "id": user_id})
 
 # ── GOOGLE DRIVE BACKUP (RCLONE) ──────────────────────────────────────────────
-import threading
-import subprocess
-import re
-import time
-import os
 
 backup_state = {
     "running": False,

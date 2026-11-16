@@ -94,6 +94,12 @@ input[type=text], input[type=password], select{width:100%;background:rgba(0,0,0,
         Purchase Orders
       </div>
       {% endif %}
+    {% if 'po_edit' in user_permissions %}
+    <div class="sb-item" onclick="window.location.href='/?tab=scanner'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h4v1.5H2.5V5H1zm10 0h4v4h-1.5V2.5H11zM1 11h1.5v2.5H5V15H1zm12.5 0H15v4h-4v-1.5h2.5zM3 7.25h10v1.5H3z"/></svg>
+      AI Invoice Scanner
+    </div>
+    {% endif %}
       {% if 'customer_books' in user_permissions %}
       <div class="sb-item" onclick="window.location.href='/sales-invoice'">
         <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h14v2L9 7v7l-2-1-2 1V7L1 3zm12 1.5H3l4 2.8v6.4l1 .5 1-.5V5.3z"/></svg>

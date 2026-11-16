@@ -10,14 +10,9 @@
 /* Additional specific styles for accounting books */
 .voucher-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
 .voucher-form-grid.full { grid-template-columns: 1fr; }
-.bal-dr { color: var(--accent); font-weight: 700; }
-.bal-cr { color: var(--red); font-weight: 700; }
 .badge-dr { background: rgba(0, 240, 255, 0.1); color: var(--accent); border: 1px solid rgba(0,240,255,0.2); }
 .badge-cr { background: rgba(255, 51, 102, 0.1); color: var(--red); border: 1px solid rgba(255,51,102,0.2); }
 
-.ageing-cell { font-size: 11px; text-align: right; }
-.ageing-cell.danger { color: var(--red); font-weight: 700; }
-.ageing-cell.warn { color: #f59e0b; font-weight: 600; }
 
 /* Ledger Table Colors */
 .row-INVOICE { background: rgba(255,255,255,0.02); }
@@ -66,6 +61,12 @@
     <div class="sb-item" onclick="window.location.href='/?tab=pos'">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
       Purchase Orders
+    </div>
+    {% endif %}
+    {% if 'po_edit' in user_permissions %}
+    <div class="sb-item" onclick="window.location.href='/?tab=scanner'">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h4v1.5H2.5V5H1zm10 0h4v4h-1.5V2.5H11zM1 11h1.5v2.5H5V15H1zm12.5 0H15v4h-4v-1.5h2.5zM3 7.25h10v1.5H3z"/></svg>
+      AI Invoice Scanner
     </div>
     {% endif %}
     {% if 'customer_books' in user_permissions %}
@@ -140,40 +141,6 @@
 </aside>
 
 <main class="main">
-  <!-- DASHBOARD TAB (Hidden) -->
-  <div class="tabs" id="tab-dashboard" style="display: none;">
-    <div class="page-header">
-      <div>
-        <div class="page-title">Receivable <span>Dashboard</span></div>
-        <div class="page-sub">High-level overview of money owed by customers</div>
-      </div>
-      <button class="btn btn-ghost" onclick="loadDashboard()">↻ Refresh</button>
-    </div>
-    <div class="stats-bar" id="dash-stats">
-      <div class="stat-card blue"><div class="stat-val">₹ 0</div><div class="stat-label">Total Receivable</div></div>
-      <div class="stat-card purple"><div class="stat-val">0</div><div class="stat-label">Customers w/ Balance</div></div>
-      <div class="stat-card red"><div class="stat-val">₹ 0</div><div class="stat-label">Overdue Amount</div></div>
-      <div class="stat-card yellow"><div class="stat-val">0</div><div class="stat-label">Avg Collection Days</div></div>
-    </div>
-    <div class="table-wrap">
-      <div class="table-header"><div class="table-title">Customer Balances</div></div>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Customer</th>
-            <th style="text-align:right">Net Balance (₹)</th>
-            <th style="text-align:right">Not Due</th>
-            <th style="text-align:right">1-30 Days</th>
-            <th style="text-align:right">31-60 Days</th>
-            <th style="text-align:right">61-90 Days</th>
-            <th style="text-align:right">91+ Days</th>
-          </tr>
-        </thead>
-        <tbody id="dash-table-body"><tr><td colspan="7" class="text-center">Loading...</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-
   <!-- LEDGERS TAB -->
   <div class="tabs active" id="tab-ledgers">
     <div class="page-header">
@@ -185,6 +152,7 @@
         <select id="ledger-customer-select" class="form-control" style="width:250px" onchange="loadLedger()">
           <option value="">Select Customer...</option>
         </select>
+        <button class="req-edit btn btn-ghost" onclick="openCustomerModal()">+ Add Customer</button>
         <button class="req-edit btn btn-primary" onclick="openVoucherModal()" id="btn-add-voucher" style="display:none">+ Add Voucher</button>
         <button class="btn btn-ghost" onclick="downloadLedgerPDF()" id="btn-pdf" style="display:none">PDF</button>
       </div>
@@ -424,11 +392,9 @@
 <div class="toast-area" id="toastArea"></div>
 
 <script>
-let customers = [];
-let currentTab = 'dashboard';
+let currentTab = 'ledgers';
 
 document.addEventListener('DOMContentLoaded', () => {
-    loadDashboard();
     fetchCustomersDropdown();
 });
 
@@ -439,7 +405,6 @@ function showTab(id, el) {
     if(el) el.classList.add('active');
     
     currentTab = id;
-    if (id === 'dashboard') loadDashboard();
     if (id === 'outstanding') loadOutstanding();
 }
 
@@ -461,78 +426,7 @@ function fmt(num) {
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-// DASHBOARD
-async function loadDashboard() {
-    try {
-        const res = await fetch('/api/customers/summary');
-        const data = await res.json();
-        
-        const sc = document.getElementById('dash-stats').children;
-        sc[0].querySelector('.stat-val').innerText = `₹ ${fmt(data.total_receivable)}`;
-        sc[1].querySelector('.stat-val').innerText = data.customers_with_balance;
-        sc[2].querySelector('.stat-val').innerText = `₹ ${fmt(data.overdue_amount)}`;
-        sc[3].querySelector('.stat-val').innerText = data.avg_collection_days;
-        
-        const tbody = document.getElementById('dash-table-body');
-        if (data.parties.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No active customer balances found.</td></tr>';
-            return;
-        }
-        
-        let html = '';
-        data.parties.forEach(p => {
-            html += `
-            <tr>
-              <td>
-                <div style="font-weight:700">${p.company}</div>
-                <div style="font-size:10px;color:var(--text-muted)">${p.name}</div>
-              </td>
-              <td style="text-align:right">
-                <div class="${p.suffix==='Dr'?'bal-dr':'bal-cr'}">₹ ${fmt(Math.abs(p.balance))} ${p.suffix}</div>
-              </td>
-              <td class="ageing-cell">${p.ageing.not_due>0 ? fmt(p.ageing.not_due):'-'}</td>
-              <td class="ageing-cell">${p.ageing.days_1_30>0 ? fmt(p.ageing.days_1_30):'-'}</td>
-              <td class="ageing-cell ${p.ageing.days_31_60>0?'warn':''}">${p.ageing.days_31_60>0 ? fmt(p.ageing.days_31_60):'-'}</td>
-              <td class="ageing-cell ${p.ageing.days_61_90>0?'danger':''}">${p.ageing.days_61_90>0 ? fmt(p.ageing.days_61_90):'-'}</td>
-              <td class="ageing-cell ${p.ageing.days_90_plus>0?'danger':''}">${p.ageing.days_90_plus>0 ? fmt(p.ageing.days_90_plus):'-'}</td>
-            </tr>`;
-        });
-        tbody.innerHTML = html;
-    } catch (e) {
-        toast('Error loading dashboard', 'err');
-    }
-}
-
 // CUSTOMERS
-async function loadCustomers() {
-    const res = await fetch('/api/customers');
-    customers = await res.json();
-    const tbody = document.getElementById('customers-table-body');
-    if (customers.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No customers yet.</td></tr>';
-        return;
-    }
-    let html = '';
-    customers.forEach(c => {
-        html += `
-        <tr>
-          <td style="font-weight:600">${c.company}</td>
-          <td>${c.name}</td>
-          <td>${c.city || '-'} / ${c.state || '-'}</td>
-          <td>${c.credit_days}</td>
-          <td>₹ ${fmt(c.credit_limit)}</td>
-          <td style="text-align:right" class="${c.outstanding_balance>=0?'bal-dr':'bal-cr'}">
-             ₹ ${fmt(Math.abs(c.outstanding_balance))} ${c.outstanding_balance>=0?'Dr':'Cr'}
-          </td>
-          <td style="text-align:center">
-             <button class="req-edit btn btn-ghost btn-sm" onclick="editCustomer('${c.id}')">Edit</button>
-             <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteCustomer('${c.id}')">Del</button>
-          </td>
-        </tr>`;
-    });
-    tbody.innerHTML = html;
-}
-
 function openCustomerModal() {
     document.getElementById('customerForm').reset();
     document.getElementById('c_id').value = '';
@@ -541,29 +435,8 @@ function openCustomerModal() {
     openModal('customerModal');
 }
 
-function editCustomer(id) {
-    const c = customers.find(x => x.id === id);
-    if(!c) return;
-    document.getElementById('c_id').value = c.id;
-    document.getElementById('c_company').value = c.company;
-    document.getElementById('c_name').value = c.name;
-    document.getElementById('c_email').value = c.email || '';
-    document.getElementById('c_phone').value = c.phone || '';
-    document.getElementById('c_address').value = c.address || '';
-    document.getElementById('c_city').value = c.city || '';
-    document.getElementById('c_state').value = c.state || '';
-    document.getElementById('c_gstin').value = c.gstin || '';
-    document.getElementById('c_credit_days').value = c.credit_days;
-    document.getElementById('c_credit_limit').value = c.credit_limit;
-    
-    document.getElementById('c_opening_grp').style.display = 'none'; // hidden on edit
-    document.getElementById('customerModalTitle').innerText = 'Edit Customer';
-    openModal('customerModal');
-}
-
 async function saveCustomer(e) {
     e.preventDefault();
-    const id = document.getElementById('c_id').value;
     const payload = {
         company: document.getElementById('c_company').value,
         name: document.getElementById('c_name').value,
@@ -577,16 +450,11 @@ async function saveCustomer(e) {
         credit_limit: parseFloat(document.getElementById('c_credit_limit').value),
     };
     
-    if(!id) {
-        payload.opening_balance = parseFloat(document.getElementById('c_opening').value || 0);
-    }
-    
-    const m = id ? 'PUT' : 'POST';
-    const u = id ? '/api/customers/'+id : '/api/customers';
-    
+    payload.opening_balance = parseFloat(document.getElementById('c_opening').value || 0);
+
     try {
-        const r = await fetch(u, {
-            method: m,
+        const r = await fetch('/api/customers', {
+            method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
@@ -594,22 +462,10 @@ async function saveCustomer(e) {
         if(!r.ok) throw new Error(res.error || 'Failed');
         toast('Customer saved successfully', 'ok');
         closeModal('customerModal');
-        loadCustomers();
-        fetchCustomersDropdown();
-    } catch(err) {
-        toast(err.message, 'err');
-    }
-}
-
-async function deleteCustomer(id) {
-    if(!confirm('Are you sure you want to delete this customer?')) return;
-    try {
-        const r = await fetch('/api/customers/'+id, {method:'DELETE'});
-        const res = await r.json();
-        if(!r.ok) throw new Error(res.error || 'Failed to delete');
-        toast('Customer deleted', 'ok');
-        loadCustomers();
-        fetchCustomersDropdown();
+        await fetchCustomersDropdown();
+        // Jump straight to the new customer's ledger
+        document.getElementById('ledger-customer-select').value = res.id;
+        loadLedger();
     } catch(err) {
         toast(err.message, 'err');
     }
@@ -863,7 +719,6 @@ async function saveVoucher(e) {
         toast('Voucher saved successfully', 'ok');
         closeModal('voucherModal');
         loadLedger();
-        loadDashboard(); // Refresh background stats
     } catch(err) {
         toast(err.message, 'err');
     }
