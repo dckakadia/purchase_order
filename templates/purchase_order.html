@@ -321,6 +321,7 @@ th.sortable:not(.asc):not(.desc) .sort-arrow::after{content:'⇅'}
   <!-- Main KPI Cards -->
   <div class="stats-bar">
     <div class="stat-card blue"><div class="stat-val" id="dash-po-total">—</div><div class="stat-label">Total POs</div></div>
+    <div class="stat-card teal" style="grid-column:span 2" title="Sum of all POs except Cancelled. USD POs converted to RMB using the rates in Settings."><div class="stat-val" id="dash-po-value-rmb">—</div><div class="stat-label">Total PO Value (RMB)</div></div>
     <div class="stat-card purple"><div class="stat-val" id="dash-suppliers-active">—</div><div class="stat-label">Active Suppliers</div></div>
     <div class="stat-card green"><div class="stat-val" id="dash-customers-active">—</div><div class="stat-label">Customers</div></div>
     <div class="stat-card yellow"><div class="stat-val" id="dash-po-draft">—</div><div class="stat-label">Draft POs</div></div>
@@ -4336,7 +4337,21 @@ async function loadDashboard(){
     document.getElementById('dash-po-draft').textContent     = allPOs.filter(p=>p.status==='Draft').length;
     document.getElementById('dash-po-confirmed').textContent = allPOs.filter(p=>p.status==='Confirmed').length;
     document.getElementById('dash-po-pending').textContent   = allPOs.filter(p=>['Shipped','In Transit','Arrived'].includes(p.status)).length;
-    
+
+    // Total value of all non-cancelled POs in RMB (USD → INR → RMB via settings rates)
+    const usdInr = parseFloat(settings.default_usd_rate) || 84.0;
+    const rmbInr = parseFloat(settings.default_rmb_rate) || 11.5;
+    const totalRmb = allPOs.filter(p=>p.status!=='Cancelled').reduce((sum,p)=>{
+      const v = (p.line_items||[]).reduce((s,li)=>s+(parseFloat(li.qty)||0)*(parseFloat(li.unit_price)||0),0);
+      const cur = p.currency||'CNY';
+      if(cur==='CNY'||cur==='RMB') return sum+v;
+      if(cur==='USD') return sum+v*usdInr/rmbInr;
+      if(cur==='INR') return sum+v/rmbInr;
+      return sum+v;
+    },0);
+    document.getElementById('dash-po-value-rmb').textContent =
+      '¥' + totalRmb.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
     // Supplier/customer counts
     document.getElementById('dash-suppliers-active').textContent = suppliers.length;
     document.getElementById('dash-customers-active').textContent = customers.length;
